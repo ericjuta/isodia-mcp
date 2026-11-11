@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { withoutCatalogIcons, withReferencedIcons } from '../core/icons';
+import { withoutCatalogIcons } from '../core/icons';
 import { slug, uniqueId } from '../core/ids';
 import { emptyModel, findView } from '../core/model';
 import { parseModel } from '../core/schema';
@@ -95,9 +95,9 @@ const toProject = (row: ProjectRow): Project => ({
 });
 
 /**
- * The form a model is stored in: the editor schema's parsed output (so equal models serialise
+ * The form a model is stored in: the schema's parsed output (so equal models serialise
  * identically), with catalog icons stripped, at least one view to edit, and a non-empty palette
- * (the editor throws on a region or connector when there is no colour to fall back to).
+ * for regions and connectors to draw from.
  */
 function normalize(model: Model): Model {
   const blank = emptyModel(model.title);
@@ -106,7 +106,7 @@ function normalize(model: Model): Model {
     views: model.views.length > 0 ? model.views : blank.views,
     colors: model.colors.length > 0 ? model.colors : blank.colors
   };
-  return withoutCatalogIcons(parseModel(withReferencedIcons(complete)));
+  return withoutCatalogIcons(parseModel(complete));
 }
 
 export class Store {
