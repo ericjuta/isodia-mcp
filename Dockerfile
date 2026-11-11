@@ -61,6 +61,6 @@ VOLUME ["/data"]
 EXPOSE 4400
 # The slim image has no curl or wget, so probe with Bun's own fetch.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD bun -e "process.exit((await fetch('http://127.0.0.1:'+ (process.env.PORT ?? 4400) '/healthz')).ok ? 0 : 1)" || exit 1
+  CMD bun -e "process.exit((await fetch('http://127.0.0.1:'+ (process.env.PORT ?? 4400) + '/healthz')).ok ? 0 : 1)" || exit 1
 
 CMD ["bun", "src/server/index.ts"]
