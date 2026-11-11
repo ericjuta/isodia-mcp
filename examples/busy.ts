@@ -1,7 +1,7 @@
 /**
- * Document the Busy repository (https://github.com/MatiSolina/busy) as Isoflow diagrams.
+ * Document the Busy repository (https://github.com/MatiSolina/busy) as isometric diagrams.
  *
- * Usage, with a isodia server running:
+ * Usage, with an isodia server running:
  *
  *   PORT=4410 ISODIA_DB=/tmp/busy-docs.db bun src/server/index.ts &
  *   bun examples/busy.ts --url http://127.0.0.1:4410 --out ../busy/docs/diagrams

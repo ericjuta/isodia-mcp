@@ -12,10 +12,18 @@ const id = z.string().min(1);
 const name = z.string().max(100);
 const coords = z.object({ x: z.number().int(), y: z.number().int() });
 
+/**
+ * A custom icon carries its picture inline. A path or a remote address is refused: the PNG
+ * renderer would read a path off the server's disk, and a viewer's browser would fetch the address.
+ */
+const iconUrl = z
+  .string()
+  .regex(/^data:image\/(png|jpeg|gif|webp|svg\+xml)[;,]/, 'An icon url must be an inline data:image/… URL.');
+
 const icon = z.object({
   id,
   name,
-  url: z.string(),
+  url: iconUrl,
   collection: z.string().optional(),
   isIsometric: z.boolean().optional()
 });

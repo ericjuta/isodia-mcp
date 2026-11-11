@@ -1,6 +1,6 @@
 /**
  * Shared driver for the worked examples: build a set of views through the MCP server, then write
- * each view as SVG and PNG plus the Isoflow model the editor can open directly.
+ * each view as SVG and PNG plus the model JSON (Isoflow format) the editor can open directly.
  *
  * Every view is built through the MCP server rather than the REST API, so a run also exercises
  * `build_diagram`, `manage_views`, `export_project` and `render_diagram` on a real workload.

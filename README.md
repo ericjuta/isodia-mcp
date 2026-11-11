@@ -38,14 +38,16 @@ The build is a normal deploy step, so run it in CI or at release time.
 ```bash
 docker build -t isodia-mcp .
 docker run -p 4400:4400 -v isodia-data:/data \
+  -e ISODIA_TOKEN="$(openssl rand -hex 32)" \
   -e ISODIA_URL=https://diagrams.example.com isodia-mcp
 ```
 
 `ISODIA_URL` is the address clients reach, and it is what the Connect-agent panel and share
 links print — set it to the public URL, not localhost. Projects live in `/data/isodia.db`, so
 mount a volume or they are lost with the container; the image runs as the unprivileged `bun` user
-and the volume is created with the right ownership. Set `ISODIA_TOKEN` to require a bearer
-token on the API and the HTTP MCP endpoint.
+and the volume is created with the right ownership. The image listens on all interfaces
+(`HOST=0.0.0.0`), so it refuses to start without `ISODIA_TOKEN`, the bearer token the API and
+the HTTP MCP endpoint then require.
 
 The base image must be glibc, because `@resvg/resvg-js` ships a prebuilt native binary and does
 not run on musl; the provided image is Debian-based, and most of its size is the Bun base. The
@@ -192,6 +194,7 @@ project meanwhile, the save is refused (`409`) and the browser shows the newer r
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
+| `HOST` | `127.0.0.1` | Interface to listen on. Anything but localhost requires `ISODIA_TOKEN` |
 | `PORT` | `4400` | HTTP port |
 | `ISODIA_DB` | `data/isodia.db` | SQLite file shared by all processes |
 | `ISODIA_URL` | `http://localhost:$PORT` | Public base URL used in links and MCP output |
@@ -202,11 +205,12 @@ openable by a client without an account.
 
 ## Security
 
-- **No authentication by default.** With `ISODIA_TOKEN` unset, anyone who can reach the port
-  can read, change and delete every project through the API and `/mcp`. Set the token before the
-  server is reachable by anyone but you.
-- **The server listens on all interfaces** (`0.0.0.0`), not only localhost. On a shared network,
-  set the token or put a firewall or reverse proxy in front.
+- **Local only by default.** The server listens on `127.0.0.1` with no authentication, so only
+  programs on this machine can read, change and delete projects through the API and `/mcp`.
+- **Serving other machines needs a token.** Setting `HOST` to anything but localhost makes the
+  server refuse to start unless `ISODIA_TOKEN` is set. The Docker image sets `HOST=0.0.0.0`.
+- **Custom icons are inline pictures.** An icon `url` must be a `data:image/…` URL; file paths
+  and remote addresses are rejected, on import too.
 - **A share link is a credential.** Anyone holding it can read that project until you revoke it.
 - **Diagram text is user content and is only ever shown as text.** Names, labels and notes are
   escaped by the renderer and reduced to plain text by the canvas; no HTML from a model is
