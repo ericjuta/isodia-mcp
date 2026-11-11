@@ -19,6 +19,9 @@ const WEB = process.env.WEB_URL ?? 'http://127.0.0.1:4401';
 const API = process.env.API_URL ?? 'http://127.0.0.1:4400';
 const PROJECT = process.env.PROJECT_ID ?? 'payments-platform';
 const SHOTS = process.env.SHOTS ?? '/tmp/isodia-check';
+// A server that listens beyond localhost requires a token; the Docker image always does.
+const TOKEN = process.env.ISODIA_TOKEN;
+const auth: Record<string, string> = TOKEN === undefined ? {} : { authorization: `Bearer ${TOKEN}` };
 await mkdir(SHOTS, { recursive: true });
 
 const step = (message: string): void => console.log(`\n== ${message}`);
@@ -32,7 +35,7 @@ interface Project {
 const send = async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => {
   const response = await fetch(`${API}${path}`, {
     method,
-    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    headers: body === undefined ? auth : { ...auth, 'content-type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   return (response.status === 204 ? undefined : await response.json()) as T;
@@ -71,6 +74,9 @@ const open = async (url: string): Promise<Page> => {
   const page = await browser.newPage();
   watch(page);
   await page.setViewport({ width: 1440, height: 900 });
+  if (TOKEN !== undefined) {
+    await page.evaluateOnNewDocument((token) => localStorage.setItem('isodia-token', token), TOKEN);
+  }
   await page.goto(url, { waitUntil: 'networkidle2' });
   return page;
 };
@@ -378,6 +384,8 @@ try {
   await shared.reload({ waitUntil: 'networkidle2' });
   console.log('revoked page notice:', await shared.$eval('.empty', (node) => node.textContent));
   failures.splice(expected);
+  // A dead link must go quiet: two poll intervals with no further request, or the final check fails.
+  await pause(7000);
 
   step('connect-agent panel shows ready-to-paste configuration');
   await clickByText(page, '.bar .seg button', 'Agent');

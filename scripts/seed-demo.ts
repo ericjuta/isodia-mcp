@@ -4,11 +4,13 @@
  *   bun scripts/seed-demo.ts
  */
 const API = process.env.API_URL ?? 'http://127.0.0.1:4400';
+const TOKEN = process.env.ISODIA_TOKEN;
+const auth: Record<string, string> = TOKEN === undefined ? {} : { authorization: `Bearer ${TOKEN}` };
 
 const post = async (path: string, body: unknown): Promise<unknown> => {
   const response = await fetch(`${API}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...auth, 'content-type': 'application/json' },
     body: JSON.stringify(body)
   });
   const text = await response.text();
@@ -50,11 +52,11 @@ const projects = [
   { id: 'payments-platform', name: 'Payments platform' }
 ];
 
-const existing = (await (await fetch(`${API}/api/projects`)).json()) as { id: string }[];
+const existing = (await (await fetch(`${API}/api/projects`, { headers: auth })).json()) as { id: string }[];
 
 for (const project of projects) {
   if (existing.some((candidate) => candidate.id === project.id)) {
-    await fetch(`${API}/api/projects/${project.id}`, { method: 'DELETE' });
+    await fetch(`${API}/api/projects/${project.id}`, { method: 'DELETE', headers: auth });
   }
   await post('/api/projects', { id: project.id, name: project.name });
   const built = (await post(`/api/projects/${project.id}/build`, spec)) as { revision: number };
@@ -63,7 +65,7 @@ for (const project of projects) {
 
 console.log(
   'projects:',
-  ((await (await fetch(`${API}/api/projects`)).json()) as { id: string; revision: number }[]).map(
+  ((await (await fetch(`${API}/api/projects`, { headers: auth })).json()) as { id: string; revision: number }[]).map(
     (project) => `${project.id}@r${project.revision}`
   )
 );
