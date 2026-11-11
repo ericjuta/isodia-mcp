@@ -1,7 +1,7 @@
 # isodia-mcp — single-origin deployment: one process serves the web app, the REST API and MCP.
 #
 #   docker build -t isodia-mcp .
-#   docker run -p 4400:4400 -v isodia-data:/data -e ISODIA_URL=https://diagrams.example.com isodia-mcp
+#   docker run -p 4400:4400 -v isodia-data:/data -e ISODIA_TOKEN=... -e ISODIA_URL=https://diagrams.example.com isodia-mcp
 #
 # The base must be glibc: @resvg/resvg-js ships a prebuilt native binary and does not run on musl.
 
@@ -20,6 +20,7 @@ RUN bun run build
 FROM oven/bun:1.4-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
     PORT=4400 \
     ISODIA_DB=/data/isodia.db
 
@@ -60,6 +61,6 @@ VOLUME ["/data"]
 EXPOSE 4400
 # The slim image has no curl or wget, so probe with Bun's own fetch.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD bun -e "process.exit((await fetch('http://127.0.0.1:'+ (process.env.PORT ?? 4400) +'/api/info')).ok ? 0 : 1)" || exit 1
+  CMD bun -e "process.exit((await fetch('http://127.0.0.1:'+ (process.env.PORT ?? 4400) '/healthz')).ok ? 0 : 1)" || exit 1
 
 CMD ["bun", "src/server/index.ts"]

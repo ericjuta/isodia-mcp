@@ -83,6 +83,9 @@ export function createApp(store: Store, config: AppConfig): Hono {
     }
   }
 
+  /** Liveness only, so a container health check needs no token. */
+  app.get('/healthz', (c) => c.text('ok'));
+
   /** What the web app shows under "Connect an agent". */
   app.get('/api/info', (c) =>
     c.json({
