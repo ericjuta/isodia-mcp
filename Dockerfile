@@ -15,7 +15,6 @@ RUN bun install --frozen-lockfile
 COPY tsconfig.json ./
 COPY web ./web
 COPY src ./src
-# The editor bundle and the icon catalog are each several megabytes by design.
 RUN bun run build
 
 FROM oven/bun:1.4-slim AS runtime
@@ -25,38 +24,33 @@ ENV NODE_ENV=production \
     ISODIA_DB=/data/isodia.db
 
 COPY package.json bun.lock ./
-# Production dependencies only: the type checker, Vite and Puppeteer stay in the build stage.
-#
-# `isoflow` is a runtime dependency for its zod model schema, and it declares the React editor's
-# whole UI tree (MUI, emotion, Quill, gsap…) as its own dependencies. The server only loads
-# dist/standaloneExports.js, which is a self-contained bundle with no external requires, so that
-# tree is dead weight. It is removed in this same layer as the install: deleting it afterwards
-# would leave the bytes in an earlier layer and ship them anyway. The install cache is dropped for
-# the same reason — it is not needed once the dependencies are on disk.
+# Production dependencies only: the type checker, Vite, React and Puppeteer stay in the build
+# stage. The install cache goes in the same layer, or its bytes would ship in an earlier one.
 RUN bun install --frozen-lockfile --production \
- && rm -rf node_modules/@mui node_modules/@emotion node_modules/react-quill node_modules/gsap \
-           node_modules/paper node_modules/dom-to-image node_modules/mui-color-input \
-           node_modules/react-router-dom node_modules/file-saver node_modules/recharts \
  && rm -rf "${HOME}/.bun/install/cache"
 
 # Bun runs the TypeScript sources directly, so no compile step is needed at runtime.
 COPY src ./src
 COPY --from=build /app/dist ./dist
 
-# Attribution ships with the artifact: the image bundles Isoflow (MIT) and vendor icon artwork.
+# The licence and third-party notices ship with the artifact.
 COPY LICENSE NOTICE.md ./
 
-# Prove the trimmed tree still validates: it must parse a good model and reject a bad one. If a
-# future `isoflow` release starts requiring any removed package, the build fails here instead of
-# shipping an image that cannot open a project. This sits after COPY src so it re-runs only when
-# the sources change, not on every dependency change.
+# Prove the production install can do the server's two jobs before the image exists: check a
+# model (accept a good one, refuse a bad one) and draw a picture, which loads the native
+# rasteriser and the bundled font. A missing runtime dependency fails the build here instead of
+# shipping an image that cannot open or render a project.
 RUN bun -e "const { parseModel } = await import('./src/core/schema.ts'); \
   const good = { version: '', title: 'ok', items: [], views: [{ id: 'overview', name: 'Overview', items: [], connectors: [], rectangles: [], textBoxes: [] }], icons: [], colors: [{ id: 'color1', value: '#a5b8f3' }] }; \
   if (parseModel(good).title !== 'ok') throw new Error('schema load is broken'); \
   let rejected = false; \
   try { parseModel({ version: '', title: 'x', items: [{ id: 'x', name: 'X', icon: 'nope' }], views: [], icons: [], colors: [] }); } catch { rejected = true; } \
   if (!rejected) throw new Error('schema no longer validates'); \
-  console.log('schema check passed');"
+  const { renderViewSvg } = await import('./src/core/render.ts'); \
+  const { svgToPng } = await import('./src/core/png.ts'); \
+  const drawn = { ...good, items: [{ id: 'a', name: 'A', icon: 'server' }], views: [{ ...good.views[0], items: [{ id: 'a', tile: { x: 0, y: 0 } }] }] }; \
+  if (svgToPng(renderViewSvg(drawn, drawn.views[0]).svg, 400).length < 1000) throw new Error('rendering is broken'); \
+  console.log('schema and render check passed');"
 
 # SQLite lives on a volume so projects survive a container replacement.
 RUN mkdir -p /data && chown -R bun:bun /data

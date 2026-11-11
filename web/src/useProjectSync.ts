@@ -29,8 +29,8 @@ const AUTOSAVE_DELAY_MS = 600;
 const POLL_INTERVAL_MS = 2000;
 
 /**
- * JSON with keys sorted at every level. The editor reports models with its own key order, so a
- * plain `JSON.stringify` comparison would see every load as an unsaved change.
+ * JSON with keys sorted at every level. An edit can rebuild an object with its keys in another
+ * order, so a plain `JSON.stringify` comparison would call an unchanged model unsaved.
  */
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

@@ -6,22 +6,23 @@ import { FONT_FAMILY, INK, INK_SOFT, PALETTE, PAPER } from './theme';
 import type { Coords, Model, TextOrientation, View } from './types';
 
 /**
- * Headless SVG rendering of one view. Placement follows the editor's own components: the same
- * tile projection, the same CSS matrices applied to the same origins, and the same draw order
- * (regions, connectors, text, connector labels, then items back to front).
+ * Drawing one view as SVG. The same drawing serves the exported picture and the editor's canvas,
+ * so what is edited is what is exported. Draw order: regions, connectors, text, connector
+ * labels, then items back to front.
  *
- * The finish does not. The editor is a working surface seen zoomed in; this is the picture that
- * lands in a document, usually scaled down. So labels are set larger, and lines, arrowheads and
+ * The picture is usually read scaled down, so labels are set large, and lines, arrowheads and
  * region titles are inked: whatever colour they carry is taken down to a lightness that reads.
  */
 
-const TILE = 100;
-const PROJECTED_WIDTH = TILE * 1.415;
-const PROJECTED_HEIGHT = TILE * 0.819;
-const HALF_W = PROJECTED_WIDTH / 2;
-const HALF_H = PROJECTED_HEIGHT / 2;
+/** Side of a tile on the ground plane, before projection. */
+export const TILE = 100;
+/** Width and height of a tile's diamond on screen. */
+export const PROJECTED_WIDTH = TILE * 1.415;
+export const PROJECTED_HEIGHT = TILE * 0.819;
+export const HALF_W = PROJECTED_WIDTH / 2;
+export const HALF_H = PROJECTED_HEIGHT / 2;
 
-/** The editor's isometric CSS matrices, per text orientation. */
+/** Ground-plane to screen matrices, per text orientation. */
 const ISO_MATRIX: Record<TextOrientation, readonly number[]> = {
   X: [0.707, -0.409, 0.707, 0.409, 0, -0.816],
   Y: [0.707, 0.409, -0.707, 0.409, 0, -0.816]
@@ -54,6 +55,8 @@ const DEFAULT_LABEL_HEIGHT = 20;
 const DEFAULT_TEXT_SIZE = 0.6;
 const DEFAULT_CONNECTOR_WIDTH = 10;
 const REGION_CORNER_RADIUS = 22;
+/** How much of a tile an isometric icon's footprint covers. */
+const ICON_SCALE = 0.95;
 
 export interface RenderOptions {
   /** Canvas colour; `null` leaves it transparent. Defaults to the paper. */
@@ -73,11 +76,20 @@ const px = (value: number): string => String(Math.round(value * 100) / 100);
 const escapeXml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/** Screen position of a tile's centre; the editor's `getTilePosition`. */
-const center = (tile: Coords): Coords => ({
+/** Screen position of a tile's centre. +x runs to the upper right, +y to the upper left. */
+export const tileCenter = (tile: Coords): Coords => ({
   x: HALF_W * (tile.x - tile.y),
   y: -HALF_H * (tile.x + tile.y)
 });
+const center = tileCenter;
+
+/** The tile whose diamond contains a screen position; the inverse of `tileCenter`. */
+export const tileAt = (point: Coords): Coords => {
+  const across = point.x / HALF_W;
+  const up = -point.y / HALF_H;
+  // `+ 0` turns a rounded -0 into 0, so tiles compare and serialise cleanly.
+  return { x: Math.round((up + across) / 2) + 0, y: Math.round((up - across) / 2) + 0 };
+};
 
 const boxHeight = (lines: string[], style: LabelStyle): number => lines.length * style.lineHeight + style.padY * 2;
 
@@ -92,12 +104,13 @@ function inked(color: string, lightness: number): string {
   return l <= lightness ? chroma(color).hex() : chroma.lch(lightness, Math.min(c * 2.4, 46), h).hex();
 }
 
-/** The editor's "dark" colour variant. */
+/** A region's border: its own colour, a step darker and stronger. */
 function darker(color: string, grade: number): string {
-  return chroma.valid(color) ? chroma(color).darken(grade).saturate(grade).css() : color;
+  // An unparseable value goes into markup as written, so it is escaped like any other text.
+  return chroma.valid(color) ? chroma(color).darken(grade).saturate(grade).css() : escapeXml(color);
 }
 
-/** Direction of a connector's arrowhead; the editor's `getConnectorDirectionIcon`. */
+/** Direction of a connector's arrowhead, from its last two path tiles. */
 function arrowRotation(from: Coords, to: Coords): number {
   if (to.x > from.x) return to.y > from.y ? 135 : to.y < from.y ? 45 : 90;
   if (to.x < from.x) return to.y > from.y ? -135 : to.y < from.y ? -45 : -90;
@@ -118,7 +131,11 @@ function iconAspect(url: string): number {
   const base64 = /^data:image\/svg\+xml;base64,/.exec(url);
   if (base64) {
     // The root tag sits at the start; 4096 base64 characters decode cleanly on their own.
-    source = Buffer.from(url.slice(base64[0].length, base64[0].length + 4096), 'base64').toString('utf8');
+    try {
+      source = atob(url.slice(base64[0].length, base64[0].length + 4096));
+    } catch {
+      source = '';
+    }
   } else if (url.startsWith('data:image/svg+xml')) {
     try {
       source = decodeURIComponent(url.slice(url.indexOf(',') + 1));
@@ -140,7 +157,26 @@ function iconAspect(url: string): number {
   return aspect;
 }
 
-export function renderViewSvg(model: Model, view: View, options: RenderOptions = {}): RenderedView {
+/** One drawn thing: the id of the model entry it shows, and its SVG markup. */
+export interface ScenePart {
+  id: string;
+  markup: string;
+}
+
+/** A view drawn as separate parts, in paint order, so a canvas can redraw only what changed. */
+export interface Scene {
+  regions: ScenePart[];
+  connectors: ScenePart[];
+  texts: ScenePart[];
+  /** Keyed by connector id. */
+  connectorLabels: ScenePart[];
+  /** Back to front. */
+  items: ScenePart[];
+  /** Extent of everything drawn, in screen units; a tile-sized box when the view is empty. */
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+}
+
+export function renderScene(model: Model, view: View): Scene {
   const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   const extend = (x: number, y: number): void => {
     bounds.minX = Math.min(bounds.minX, x);
@@ -151,7 +187,7 @@ export function renderViewSvg(model: Model, view: View, options: RenderOptions =
 
   /**
    * Transform for a `width` x `height` box lying on the tile plane with its corner on
-   * `originTile`; the editor's `useIsoProjection`.
+   * `originTile`.
    */
   const plane = (originTile: Coords, orientation: TextOrientation, width: number, height: number): string => {
     const origin = center(originTile);
@@ -202,11 +238,11 @@ export function renderViewSvg(model: Model, view: View, options: RenderOptions =
     const width = (Math.abs(rectangle.from.x - rectangle.to.x) + 1) * TILE;
     const height = (Math.abs(rectangle.from.y - rectangle.to.y) + 1) * TILE;
     const color = paint(rectangle.color);
-    return `<g transform="${plane({ x: lowX, y: highY }, 'X', width, height)}"><rect width="${width}" height="${height}" rx="${REGION_CORNER_RADIUS}" fill="${escapeXml(color)}" stroke="${darker(color, 0.5)}" stroke-width="2.5"/></g>`;
+    return { id: rectangle.id, markup: `<g transform="${plane({ x: lowX, y: highY }, 'X', width, height)}"><rect width="${width}" height="${height}" rx="${REGION_CORNER_RADIUS}" fill="${escapeXml(color)}" stroke="${darker(color, 0.5)}" stroke-width="2.5"/></g>` };
   });
 
-  const connectors: string[] = [];
-  const connectorLabels: string[] = [];
+  const connectors: ScenePart[] = [];
+  const connectorLabels: ScenePart[] = [];
   /** Tiles already carrying a connector label; two labels on one tile hide each other. */
   const labelTiles = new Set<string>();
   for (const connector of view.connectors ?? []) {
@@ -236,14 +272,16 @@ export function renderViewSvg(model: Model, view: View, options: RenderOptions =
       const rotation = arrowRotation(at, path.tiles[path.tiles.length - 1]);
       arrow = `<g transform="translate(${at.x * TILE + TILE / 2} ${at.y * TILE + TILE / 2}) rotate(${rotation})"><polygon fill="${ink}" stroke="${PAPER}" stroke-width="4" stroke-linejoin="round" points="17.58,17.01 0,-17.01 -17.58,17.01"/></g>`;
     }
-    // The editor draws path tiles mirrored along x and flips the whole layer back; so does this.
+    // Path tiles count away from the search area's far corner, so the layer is drawn mirrored
+    // along x and flipped back.
     const projection = plane({ x: path.origin.x - path.size.width + 1, y: path.origin.y }, 'X', width, height);
-    connectors.push(
-      `<g transform="${projection}"><g transform="translate(${width} 0) scale(-1 1)"><polyline stroke="${PAPER}" stroke-opacity="0.85" stroke-width="${px(stroke * 1.6)}" ${line}/><polyline stroke="${ink}" stroke-width="${stroke}" ${line}/>${arrow}</g></g>`
-    );
+    connectors.push({
+      id: connector.id,
+      markup: `<g transform="${projection}"><g transform="translate(${width} 0) scale(-1 1)"><polyline stroke="${PAPER}" stroke-opacity="0.85" stroke-width="${px(stroke * 1.6)}" ${line}/><polyline stroke="${ink}" stroke-width="${stroke}" ${line}/>${arrow}</g></g>`
+    });
 
     if (connector.description) {
-      // The editor centres the label on the middle path tile. A short path is mostly its own
+      // The obvious place for the label is the middle path tile. A short path is mostly its own
       // anchors, so that tile often belongs to an item — and items paint last, which puts the
       // label behind the icon. Two connectors can also share a tile, stacking two labels so one
       // hides the other. Prefer a free tile with the most clearance from every item, nearest the
@@ -278,9 +316,10 @@ export function renderViewSvg(model: Model, view: View, options: RenderOptions =
       labelTiles.add(`${chosen.x},${chosen.y}`);
       const at = center(chosen);
       const lines = wrapText(connector.description, CONNECTOR_LABEL.wrap, CONNECTOR_LABEL.fontSize);
-      connectorLabels.push(
-        labelBox(lines, CONNECTOR_LABEL, at.x, at.y - boxHeight(lines, CONNECTOR_LABEL) / 2).markup
-      );
+      connectorLabels.push({
+        id: connector.id,
+        markup: labelBox(lines, CONNECTOR_LABEL, at.x, at.y - boxHeight(lines, CONNECTOR_LABEL) / 2).markup
+      });
     }
   }
 
@@ -301,13 +340,15 @@ export function renderViewSvg(model: Model, view: View, options: RenderOptions =
     const ground = region ? paint(region.color) : PAPER;
     const fill = region ? inked(ground, TITLE_LIGHTNESS) : INK;
     // A halo in the colour of the ground under the glyphs, so a line passing behind a title
-    // breaks around the word instead of cutting through it. The editor places titles where
-    // lines run, not around them.
+    // breaks around the word instead of cutting through it.
     const halo = `stroke="${escapeXml(ground)}" stroke-width="${px(fontSize * 0.26)}" stroke-linejoin="round"`;
-    return `<g transform="${transform}"><text ${glyphs} ${halo}>${escapeXml(text.content)}</text><text ${glyphs} fill="${fill}">${escapeXml(text.content)}</text></g>`;
+    return {
+      id: text.id,
+      markup: `<g transform="${transform}"><text ${glyphs} ${halo}>${escapeXml(text.content)}</text><text ${glyphs} fill="${fill}">${escapeXml(text.content)}</text></g>`
+    };
   });
 
-  // Items further back (higher x + y) are drawn first; ties keep the editor's reversed order.
+  // Items further back (higher x + y) are drawn first; ties go to the item added later.
   const backToFront = [...view.items].reverse().sort((a, b) => b.tile.x + b.tile.y - (a.tile.x + a.tile.y));
   const nodes = backToFront.map((viewItem) => {
     const item = model.items.find((candidate) => candidate.id === viewItem.id);
@@ -330,7 +371,9 @@ export function renderViewSvg(model: Model, view: View, options: RenderOptions =
     if (icon?.url) {
       const aspect = iconAspect(icon.url);
       if (icon.isIsometric) {
-        const width = PROJECTED_WIDTH * 0.8;
+        // An isometric icon's footprint spans its image's width: nearly the whole tile, so the
+        // thing reads at export size, with a sliver of ground left between neighbours.
+        const width = PROJECTED_WIDTH * ICON_SCALE;
         const height = width * aspect;
         const left = at.x - width / 2;
         const top = at.y + HALF_H - height;
@@ -343,13 +386,20 @@ export function renderViewSvg(model: Model, view: View, options: RenderOptions =
         markup += `<g transform="${plane(viewItem.tile, 'X', width, height)}"><image href="${escapeXml(icon.url)}" width="${px(width)}" height="${px(height)}"/></g>`;
       }
     }
-    return markup;
+    return { id: viewItem.id, markup };
   });
 
   if (bounds.minX === Infinity) {
     extend(-PROJECTED_WIDTH, -PROJECTED_HEIGHT);
     extend(PROJECTED_WIDTH, PROJECTED_HEIGHT);
   }
+  return { regions, connectors, texts, connectorLabels, items: nodes, bounds };
+}
+
+export function renderViewSvg(model: Model, view: View, options: RenderOptions = {}): RenderedView {
+  const scene = renderScene(model, view);
+  const { bounds } = scene;
+  const join = (parts: ScenePart[]): string => parts.map((part) => part.markup).join('');
   const padding = options.padding ?? 40;
   const x = Math.floor(bounds.minX - padding);
   const y = Math.floor(bounds.minY - padding);
@@ -361,6 +411,6 @@ export function renderViewSvg(model: Model, view: View, options: RenderOptions =
       ? ''
       : `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${escapeXml(background)}"/>`;
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" width="${width}" height="${height}" font-family="${FONT_FAMILY}">${backdrop}${regions.join('')}${connectors.join('')}${texts.join('')}${connectorLabels.join('')}${nodes.join('')}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" width="${width}" height="${height}" font-family="${FONT_FAMILY}">${backdrop}${join(scene.regions)}${join(scene.connectors)}${join(scene.texts)}${join(scene.connectorLabels)}${join(scene.items)}</svg>`;
   return { svg, width, height };
 }

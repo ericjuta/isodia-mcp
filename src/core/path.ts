@@ -1,11 +1,11 @@
 import PF from 'pathfinding';
 import type { Connector, ConnectorAnchor, Coords, View } from './types';
 
-/** Tiles the search area extends beyond the anchors; the editor's CONNECTOR_SEARCH_OFFSET. */
+/** Tiles the search area extends beyond the anchors, so a route can step around its ends. */
 const SEARCH_OFFSET = 1;
 
 export interface ConnectorPath {
-  /** Corner of the search area with the highest x and y; the editor projects from here. */
+  /** Corner of the search area with the highest x and y; path tiles are counted from here. */
   origin: Coords;
   /** Search area size in tiles. */
   size: { width: number; height: number };
@@ -33,9 +33,9 @@ function anchorTile(anchor: ConnectorAnchor, view: View, visited: Set<string>): 
 }
 
 /**
- * The tiles a connector runs through, computed exactly as the editor's `getConnectorPath`:
- * A* with diagonal moves inside the anchors' bounding box grown by one tile, one segment per
- * consecutive anchor pair.
+ * The tiles a connector runs through: A* with diagonal moves inside the anchors' bounding box
+ * grown by one tile, one segment per consecutive anchor pair. Other tools that read the model
+ * format route the same way, so a file looks the same there.
  */
 export function connectorPath(connector: Connector, view: View): ConnectorPath {
   if (connector.anchors.length < 2) {

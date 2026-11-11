@@ -1,15 +1,18 @@
 # isodia-mcp
 
-Isoflow-compatible isometric architecture diagrams with an MCP server, revision history and
-share links. Built on the MIT-licensed [Isoflow](https://github.com/markmanx/isoflow) editor and
-its icon packs, whose vendor collections keep their own terms (see [Licence](#licence)).
+Isometric architecture diagrams that agents and people draw together: an MCP server, a browser
+canvas, revision history and share links, over one model.
 
-This is an independent project. It is not affiliated with or endorsed by Isoflow, and it contains
-no Isoflow Pro code.
+Everything that draws or changes a diagram is this project's own: the model rules, the layout
+engine, the renderer, the canvas and the icon set. Diagrams are stored in the open
+[Isoflow](https://github.com/markmanx/isoflow) model format, so files move between isodia and
+other tools that read it; isodia includes no Isoflow code and is not affiliated with it.
 
-The editor is one surface; the product is the **model, the history and the agent interface**.
-Agents can create, lay out, edit and render diagrams through MCP, and humans get the same
-diagrams in a browser with autosave, revision history and read-only share links.
+The canvas is one surface; the product is the **model, the history and the agent interface**.
+Agents create, lay out, edit and render diagrams through MCP, and people get the same diagrams
+in a browser with autosave, revision history and read-only share links. A person's edit on the
+canvas and an agent's edit over MCP are the same operations, and the canvas is drawn by the
+same renderer that exports the pictures.
 
 ## Quick start
 
@@ -45,14 +48,13 @@ and the volume is created with the right ownership. Set `ISODIA_TOKEN` to requir
 token on the API and the HTTP MCP endpoint.
 
 The base image must be glibc, because `@resvg/resvg-js` ships a prebuilt native binary and does
-not run on musl; the provided image is Debian-based. Images are ~390 MB, mostly the Bun base. The
-build prunes the React editor's dependency tree from the runtime stage — the server only needs
-`isoflow`'s standalone model schema — and the Dockerfile asserts that the schema still loads and
-still rejects invalid models, so a future `isoflow` release cannot silently break validation.
+not run on musl; the provided image is Debian-based, and most of its size is the Bun base. The
+runtime stage installs production dependencies only, and the build fails unless that install can
+check a model and render a picture.
 
 ## Connect an agent
 
-The built-in panel (**Agent** in the editor) prints both configurations.
+The built-in panel (**Agent** on a project page) prints both configurations.
 
 **stdio**, on the same machine — nothing to host:
 
@@ -88,13 +90,13 @@ to the default and appears empty.
 | `list_projects`, `create_project`, `delete_project` | Project lifecycle |
 | `get_diagram` | Read a view: items with tiles, connectors, regions, text |
 | `build_diagram` | Replace a view with nodes/edges/groups, laid out automatically |
-| `edit_diagram` | Atomic batch of edits: add, place, update, move, remove, connect, regions, text, `auto_layout` |
+| `edit_diagram` | Atomic batch of edits: add, place, update, move, remove, connect, regions (draw, retitle, move with contents), text, `auto_layout` |
 | `manage_views` | Create, rename, copy or delete views |
-| `search_icons` | Find icon ids across the bundled collections |
+| `search_icons` | Find icon ids in the bundled set by keyword (`postgres` finds `database`) |
 | `render_diagram` | PNG image or SVG source of a view |
 | `list_revisions`, `restore_revision`, `save_checkpoint` | History |
 | `share_project` | Create, list and revoke read-only share links |
-| `export_project`, `import_project` | Isoflow model JSON in and out |
+| `export_project`, `import_project` | Model JSON (Isoflow format) in and out |
 
 `render_diagram` returning a real image is what lets an agent check its own layout instead of
 guessing.
@@ -111,7 +113,7 @@ bun scripts/registration-check.ts          # handshake against the stdio entry p
 
 `examples/busy.ts` is a worked example against a real repository: it builds five views
 (deployment, message path, durable work, trust boundaries, repository map) through the MCP
-server, saves a checkpoint and writes an SVG and a 1600 px PNG per view plus the Isoflow model.
+server, saves a checkpoint and writes an SVG and a 1600 px PNG per view plus the model JSON.
 `--png-only` skips the SVGs, which embed the icon artwork and are large. It runs against a live
 server and recreates its own project each time:
 
@@ -122,7 +124,7 @@ bun examples/busy.ts --url http://127.0.0.1:4410 --out /tmp/busy-diagrams
 
 ## Model and layout
 
-A project is one Isoflow model: a shared list of **items** (name, icon, description) plus one or
+A project is one model: a shared list of **items** (name, icon, description) plus one or
 more **views** that place those items on a tile grid. So "the same systems, for a different
 audience" is a second view, not a second diagram.
 
@@ -137,8 +139,29 @@ tile with the most clearance from every item, closest to the middle of the route
 item's tile would vanish behind the icon, because items paint last, and two labels on one tile
 would hide each other.
 
-Every operation is checked against the editor's own zod schema before it is stored, so a model
-that cannot be opened in the editor cannot enter the database.
+Every change is checked against the model schema (`src/core/schema.ts`) before it is stored:
+whole-number tiles, unique ids, and every reference to an item, icon, colour or anchor resolved.
+A model that cannot be drawn cannot enter the database.
+
+## Icons
+
+The bundled icons are generic nouns (`server`, `database`, `queue`, `user`, `gateway`…) drawn as
+uncoloured isometric paper models and generated from code in `src/core/iconset/`. There are no
+vendor logos: name the product in the item's label. Search answers to the names people use, so
+`postgres`, `s3` or `lambda` find the right noun. A model can carry its own icons in `icons`
+(any image as a data URI); they travel with the model and win over a bundled icon of the same
+id. `bun scripts/icon-sheet.ts --out sheet.png` renders the whole set.
+
+## The canvas
+
+Tools are words in one bar: **Select** (click, drag to move, drag empty space to pan),
+**Connect** (click one item, then another), **Region** (drag across tiles), **Text** (click a
+tile), then **Add item**, **Undo**, **Redo** and **Tidy** (lay the view out again). The
+selection's properties appear beside it and are shown on the canvas as you type. Dragging a
+region moves what stands in it; a selected region resizes by its corner handles. The wheel pans,
+Ctrl or Cmd with the wheel zooms. Keys: `V` `C` `R` `T` `I`, `Del`, `Esc`, `Ctrl+Z`,
+`Ctrl+Shift+Z`. A share page is the same canvas, read-only: clicking an item shows its name and
+notes.
 
 ## Design
 
@@ -148,8 +171,8 @@ and where you are. [`DESIGN.md`](DESIGN.md) has the tokens, the rules for drawin
 the reasons, and the known debts. The values live in `src/core/theme.ts` and
 `web/src/styles.css`.
 
-Colours are stored in each model, so a project made before a palette change, or in the
-open-source editor, keeps the colours it was drawn with.
+Colours are stored in each model, so a project made before a palette change, or imported from
+another tool, keeps the colours it was drawn with.
 
 ## Storage
 
@@ -185,9 +208,10 @@ openable by a client without an account.
 - **The server listens on all interfaces** (`0.0.0.0`), not only localhost. On a shared network,
   set the token or put a firewall or reverse proxy in front.
 - **A share link is a credential.** Anyone holding it can read that project until you revoke it.
-- **Diagram text is user content.** The bundled Isoflow editor renders rich text through Quill;
-  its handling of hostile HTML has not been audited here, so do not open projects or share links
-  from people you do not trust.
+- **Diagram text is user content and is only ever shown as text.** Names, labels and notes are
+  escaped by the renderer and reduced to plain text by the canvas; no HTML from a model is
+  inserted into the page. A model's own icons are images shown through SVG `<image>`, which
+  does not run scripts.
 - The stdio MCP server has the same access as the user who starts it; it does not check the token.
 
 Report vulnerabilities privately through the repository's security advisories, not public issues.
@@ -215,11 +239,10 @@ bun scripts/mcp-http-demo.ts                  # MCP over HTTP, end to end
 
 `browser-check.ts` expects the `payments-platform` and `acme-retail-platform` demo projects, so run
 `seed-demo.ts` first on a fresh database. Both scripts read `API_URL`/`WEB_URL` and default to the
-dev ports; the browser check also needs `CHROME_PATH`. It exits non-zero when a step fails, leaves
-one revoked share link behind, and prints what the browser complained about under `page errors`.
-Two entries belong there: the deliberate 404 for the revoked link, once as a response and once as
-a console message. Against the dev servers React adds warnings from inside the bundled Isoflow
-editor, about list keys and `findDOMNode`; a production build has none.
+dev ports; the browser check also needs `CHROME_PATH`. It drives every canvas tool on a scratch
+project, checks each edit against what the server stored, and exits non-zero when a step fails
+or when a page logs an error, a failed request or an uncaught exception. The only complaint it
+expects, and discounts, is the 404 for the share link it revokes.
 
 Both serving modes are covered. Point both variables at a single-origin server to check the
 production path, where no proxy sits in front of `/api` or `/mcp`:
@@ -234,27 +257,17 @@ WEB_URL=http://127.0.0.1:4500 API_URL=http://127.0.0.1:4500 bun scripts/browser-
 CI owns the full build and test gates; `bun run build` is a deploy step, not part of a code
 change.
 
-## Notes on the editor
+## Notes
 
-- `isoflow@1.1.1` externalises only `react`/`react-dom` and bundles its own MUI, Quill and zod.
-  It calls `ReactDOM.findDOMNode`, so **React 18 is required** — React 19 removed it.
-- Stored models keep only custom icons. The bundled catalog is several megabytes of inlined SVG,
-  so it is added in the browser (and on demand for standalone exports) rather than stored per
-  project.
-- The editor's "Open" and "Export JSON" menu items are hidden; import and export run through the
-  server so history and validation always apply.
-- The editor's canvas takes the paper colour and typeface, and its floating controls take the
-  app's borders. Its tool highlight stays MUI blue: the editor builds its own theme and exposes
-  no hook for it.
-- The `server` and `router` icons carry a few stray pixels to the right of the artwork. They
-  are in the upstream SVGs, so they show in the editor and in rendered pictures alike.
+- Stored models keep only their own icons. Bundled icons are resolved by id when a model is
+  drawn, and embedded on export so the file is complete on its own.
+- Import and export run through the server, so history and validation always apply.
+- A model made elsewhere that names an icon it does not carry, and that the bundled set does
+  not have (a vendor icon from another tool's pack, for example), is refused with the icon's
+  name. Embed the icon in the file's `icons`, or change the item to a bundled noun.
 
 ## Licence
 
-MIT — see [`LICENSE`](LICENSE). The Isoflow editor and the `isoflow` icon collection are MIT
-licensed (Copyright (c) 2023 Mark Mankarious). The AWS, Azure, GCP and Kubernetes icon
-collections are vendor artwork under the vendors' own terms, not MIT. The editor's published
-bundle also inlines third-party libraries, among them GSAP, which is free to use but not open
-source. This repository contains neither the artwork nor those libraries (they are installed
-from npm), but a built image or hosted instance redistributes both, so read
-[`NOTICE.md`](NOTICE.md) before publishing either.
+MIT, see [`LICENSE`](LICENSE): the code and the icon artwork. The dependencies keep their own
+licences, all permissive or weak-copyleft and none modified; [`NOTICE.md`](NOTICE.md) lists
+them, and should travel with anything you ship or host.

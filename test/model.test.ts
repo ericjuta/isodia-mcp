@@ -6,7 +6,7 @@ import { diagramSpecSchema, type Operation } from '../src/core/operations';
 import { parseModel } from '../src/core/schema';
 import type { Coords, Model } from '../src/core/types';
 
-/** The model as the editor would load it; throws when the editor would refuse it. */
+/** The model as it would be stored and exported; throws when the schema refuses it. */
 const accepted = (model: Model): Model => parseModel(withReferencedIcons(model));
 
 const shop = (): Model =>
@@ -32,7 +32,7 @@ const edit = (model: Model, operations: Operation[], view?: string): Model =>
 
 const tileKeys = (model: Model): string[] => model.views[0].items.map(({ tile }) => `${tile.x},${tile.y}`);
 
-test('a built diagram is a model the editor accepts, with a region around its group', () => {
+test('a built diagram is a valid model, with a region around its group', () => {
   const model = accepted(shop());
   const view = describeView(model, model.views[0]);
 
@@ -144,7 +144,7 @@ test('colours: a hex value joins the palette once, and an unknown name is refuse
   expect(() => edit(shop(), [{ op: 'add_region', items: ['web'], color: 'mauve' }])).toThrow(/Unknown colour "mauve"/);
 });
 
-test("a region reads back by colour name under this palette or the open-source editor's, and by value once repainted", () => {
+test("a region reads back by colour name under this palette or the original Isoflow one, and by value once repainted", () => {
   const model = shop();
   const regionColor = (): string | undefined => describeView(model, model.views[0]).regions[0].color;
   const blue = model.colors.find((color) => color.id === model.views[0].rectangles![0].color)!;
@@ -202,7 +202,7 @@ test('the last view cannot be deleted', () => {
   expect(() => deleteView(shop(), 'overview')).toThrow(/only view/);
 });
 
-test('each kind of edit produces the described diagram, and the editor accepts the result', () => {
+test('each kind of edit produces the described diagram, and the result is a valid model', () => {
   const built = edit(emptyModel('Ops'), [
     { op: 'add_item', name: 'Gateway', icon: 'router', tile: { x: 0, y: 0 } },
     { op: 'add_item', name: 'Service', tile: { x: 3, y: 0 }, description: 'Does work' },
@@ -254,11 +254,56 @@ test('each kind of edit produces the described diagram, and the editor accepts t
   const rest = describeView(stripped, stripped.views[0]);
 
   expect(stripped.items.map((item) => item.id)).toEqual(['service']);
+  // A region's title is part of the region: removing one removes the other.
   expect({ connectors: rest.connectors, regions: rest.regions, texts: rest.texts.map((text) => text.id) }).toEqual({
     connectors: [],
     regions: [],
-    texts: ['region-label']
+    texts: []
   });
+});
+
+test('moving a region carries what stands in it and leaves the rest where it was', () => {
+  const built = edit(emptyModel('Ops'), [
+    { op: 'add_item', name: 'Inside', tile: { x: 0, y: 0 } },
+    { op: 'add_item', name: 'Neighbour', tile: { x: 1, y: 0 } },
+    { op: 'add_item', name: 'Outside', tile: { x: 6, y: 0 } },
+    { op: 'connect', from: 'inside', to: 'outside', via: [{ x: 1, y: 1 }] },
+    { op: 'add_region', from: { x: -1, y: -1 }, to: { x: 2, y: 2 }, label: 'Zone' },
+    { op: 'add_text', content: 'Elsewhere', tile: { x: 6, y: 3 } }
+  ]);
+
+  // One tile over: "Inside" lands where "Neighbour" stood, which is fine because both move.
+  const moved = accepted(edit(built, [{ op: 'move_region', region: 'region', by: { x: 1, y: 0 } }]));
+  const view = moved.views[0];
+
+  expect(view.items.map((item) => [item.id, item.tile])).toEqual([
+    ['inside', { x: 1, y: 0 }],
+    ['neighbour', { x: 2, y: 0 }],
+    ['outside', { x: 6, y: 0 }]
+  ]);
+  expect(view.rectangles![0]).toMatchObject({ from: { x: 0, y: -1 }, to: { x: 3, y: 2 } });
+  expect(view.textBoxes!.map((text) => [text.id, text.tile])).toEqual([
+    ['region-label', { x: 1, y: 1 }],
+    ['text', { x: 6, y: 3 }]
+  ]);
+  expect(view.connectors![0].anchors[1].ref.tile).toEqual({ x: 2, y: 1 });
+
+  // Onto something that stays behind: refused, and nothing moves.
+  expect(() => edit(built, [{ op: 'move_region', region: 'region', by: { x: 5, y: 0 } }])).toThrow(/taken by "outside"/);
+});
+
+test('a region is titled, retitled and untitled through the region itself', () => {
+  const bare = edit(emptyModel('Ops'), [{ op: 'add_region', from: { x: 0, y: 0 }, to: { x: 4, y: 3 } }]);
+  const titles = (model: Model): string[] => model.views[0].textBoxes!.map((text) => `${text.id}=${text.content}`);
+
+  const titled = edit(bare, [{ op: 'update_region', region: 'region', label: 'Edge' }]);
+  const retitled = edit(titled, [{ op: 'update_region', region: 'region', label: 'Core' }]);
+  const untitled = edit(retitled, [{ op: 'update_region', region: 'region', label: '' }]);
+
+  expect(titles(bare)).toEqual([]);
+  expect(titles(accepted(titled))).toEqual(['region-label=Edge']);
+  expect(titles(retitled)).toEqual(['region-label=Core']);
+  expect(titles(untitled)).toEqual([]);
 });
 test('a group that lists its nodes is rejected instead of silently producing no region', () => {
   // Membership is set on the node. Listing nodes on the group is the natural misreading, and

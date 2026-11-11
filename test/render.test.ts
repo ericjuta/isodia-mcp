@@ -36,17 +36,19 @@ test('a waypoint pulls the connector through its tile', () => {
 });
 
 test('the rendered picture frames every item', () => {
-  const { model } = applyOperations(emptyModel('Spread'), undefined, [
+  // A flat (non-isometric) icon lies on its tile instead of standing on it; it is framed too.
+  const flatLogo = { id: 'logo', name: 'Logo', url: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiLz4=', isIsometric: false };
+  const { model } = applyOperations({ ...emptyModel('Spread'), icons: [flatLogo] }, undefined, [
     { op: 'add_item', name: 'North', tile: { x: 12, y: 9 } },
     { op: 'add_item', name: 'South', tile: { x: -7, y: -15 } },
-    { op: 'add_item', name: 'Flat', icon: '_aws_', tile: { x: 8, y: -11 } }
+    { op: 'add_item', name: 'Flat', icon: 'logo', tile: { x: 8, y: -11 } }
   ]);
   const view = model.views[0];
 
   const { svg } = renderViewSvg(model, view);
   const [x, y, width, height] = /viewBox="([^"]+)"/.exec(svg)![1].split(' ').map(Number);
 
-  // The editor's projection: a tile is 141.5 x 81.9 on screen.
+  // The projection: a tile is 141.5 x 81.9 on screen.
   for (const { tile } of view.items) {
     const screenX = 70.75 * (tile.x - tile.y);
     const screenY = -40.95 * (tile.x + tile.y);

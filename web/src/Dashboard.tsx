@@ -132,11 +132,11 @@ export function Dashboard() {
         ))}
       </ul>
       <footer className="credit">
-        MIT licensed. Built on the{' '}
+        MIT licensed. Diagrams are stored in the{' '}
         <a className="link" href="https://github.com/markmanx/isoflow" rel="noreferrer">
           Isoflow
         </a>{' '}
-        editor, © 2023 Mark Mankarious. Icon artwork by AWS, Microsoft, Google and the Kubernetes project.
+        model format, so they open elsewhere too.
       </footer>
     </div>
   );

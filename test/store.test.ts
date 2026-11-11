@@ -135,7 +135,7 @@ test('restoring a pruned revision explains the range instead of listing every nu
   expect(message.length).toBeLessThan(160);
 });
 
-test('a model the editor would refuse is rejected and the project is untouched', () => {
+test('an invalid model is rejected and the project is untouched', () => {
   const { store } = open();
   const { id } = store.createProject({ name: 'Shop' }, 'api');
 
@@ -183,11 +183,11 @@ test('an import with no colours or views gets a palette and a view to edit', () 
   expect(imported.model.colors.length).toBeGreaterThan(0);
 });
 
-test('an import keeps the editor features a hand-built file relies on', () => {
+test('an import keeps the features a hand-built file relies on', () => {
   const { store } = open();
   const icon = 'data:image/svg+xml;base64,PHN2Zy8+';
 
-  // Written the way the Isoflow editor exports a file, not the way build_diagram composes one:
+  // Written the way another tool exports the format, not the way build_diagram composes one:
   // several views, a custom icon, per-item label heights, a wide dotted connector routed through a
   // waypoint tile, and a vertical text box.
   const imported = store.importProject({

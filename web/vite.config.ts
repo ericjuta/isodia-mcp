@@ -9,9 +9,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: '../dist',
-    emptyOutDir: true,
-    // The editor bundle and the icon catalog are each several megabytes by nature.
-    chunkSizeWarningLimit: 8000
+    emptyOutDir: true
   },
   server: {
     port: 4401,

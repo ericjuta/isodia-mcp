@@ -1,7 +1,6 @@
 /**
- * The Isoflow diagram model, as accepted by the MIT `isoflow` editor.
- * Declared here rather than imported so the headless core does not depend on the editor's
- * bundled zod/zustand type graph. `schema.ts` validates against the editor's own schema.
+ * The diagram model. Its shape is the Isoflow model format, so files move between this project
+ * and other tools that read it; `schema.ts` holds the rules a model must satisfy here.
  */
 
 export interface Coords {

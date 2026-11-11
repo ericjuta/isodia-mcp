@@ -79,14 +79,20 @@ export const operationSchema = z.discriminatedUnion('op', [
     region: z.string(),
     from: tile.optional(),
     to: tile.optional(),
-    color: color.optional()
+    color: color.optional(),
+    label: z.string().optional().describe('Title along the region edge; an empty string removes it.')
   }),
+  z.object({
+    op: z.literal('move_region'),
+    region: z.string(),
+    by: tile.describe('How far to move, in tiles.')
+  }).describe('Move a region together with everything standing in it: items, text, waypoints and regions it contains.'),
   z.object({ op: z.literal('remove_region'), region: z.string() }),
   z.object({
     op: z.literal('add_text'),
     content: z.string().min(1),
     tile,
-    fontSize: z.number().positive().optional().describe('In tiles; the editor default is 0.6.'),
+    fontSize: z.number().positive().optional().describe('In tiles; 0.6 when omitted.'),
     orientation: z.enum(['X', 'Y']).optional().describe('Axis the text runs along.')
   }),
   z.object({

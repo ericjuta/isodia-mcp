@@ -39,7 +39,7 @@ export function wrapText(text: string, maxWidth: number, fontSize: number, bold 
 const TILE_PX = 100;
 const TEXT_BOX_PADDING_PX = 20;
 
-/** Tiles a text box spans along its baseline; mirrors the editor's `getTextWidth`. */
+/** Tiles a text box spans along its baseline. */
 export function textBoxSpan(content: string, fontSize: number): number {
   if (content === '') return 0;
   const width = estimateTextWidth(content, fontSize * TILE_PX, true);
@@ -49,7 +49,7 @@ export function textBoxSpan(content: string, fontSize: number): number {
 const escapeHtml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** Plain text to the paragraph HTML the editor's rich text field stores. */
+/** Plain text to the paragraph HTML the model format stores descriptions as. */
 export function textToHtml(text: string): string {
   return text
     .split('\n')
@@ -57,7 +57,7 @@ export function textToHtml(text: string): string {
     .join('');
 }
 
-/** The editor's rich text HTML back to plain text. */
+/** A description's HTML back to plain text; tags are dropped, never interpreted. */
 export function htmlToText(html: string): string {
   return html
     .replace(/<\/(?:p|div|li|h[1-6])>/gi, '\n')

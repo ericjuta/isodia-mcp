@@ -197,16 +197,16 @@ export function ExportPanel(props: { projectId: string; viewId: string }) {
   const { projectId, viewId } = props;
   return (
     <section className="panel-body">
-      <p className="hint">Your diagrams are plain Isoflow models. Take them anywhere.</p>
+      <p className="hint">Your diagrams are plain JSON in the Isoflow model format. Take them anywhere.</p>
       <div className="stack">
         <button
           type="button"
           className="btn"
           onClick={async () => download(await api.exportUrl(projectId), `${projectId}.json`)}
         >
-          Download Isoflow JSON
+          Download model JSON
         </button>
-        <span className="meta">Opens in the open-source Isoflow editor, icons included.</span>
+        <span className="meta">Complete on its own: the icons it uses are embedded.</span>
         <button
           type="button"
           className="btn"

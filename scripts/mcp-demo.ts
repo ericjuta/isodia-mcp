@@ -35,7 +35,7 @@ const parse = (result: CallToolResult): Record<string, unknown> => {
 const name = process.argv[2] ?? 'Payments platform';
 const projectId = String(parse(await call('create_project', { name, description: 'Maintained by an agent over MCP.' })).id);
 
-await call('search_icons', { query: 'database', collection: 'aws', limit: 5 });
+await call('search_icons', { query: 'postgres', limit: 5 });
 await call('build_diagram', {
   project: projectId,
   groups: [

@@ -3,19 +3,19 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import pkg from '../../package.json';
 import { describeView } from '../core/describe';
-import { ICON_COLLECTIONS, searchIcons, withReferencedIcons } from '../core/icons';
+import { searchIcons, withReferencedIcons } from '../core/icons';
 import { applyOperations, buildDiagram, createView, deleteView, findView, updateView } from '../core/model';
 import { diagramSpecSchema, operationSchema } from '../core/operations';
 import { svgToPng } from '../core/png';
 import { renderViewSvg } from '../core/render';
 import type { Store } from './store';
 
-const INSTRUCTIONS = `Isometric architecture and network diagrams in the Isoflow format.
+const INSTRUCTIONS = `Isometric architecture and network diagrams. Models use the open Isoflow JSON format.
 A project holds a shared set of items plus one or more views that place those items on a tile grid, so one model can back several diagrams.
 
 Typical flow: list_projects or create_project, then build_diagram to lay out a whole graph automatically, edit_diagram for targeted changes, and render_diagram to look at the result.
 
-Icons: the "isoflow" collection is 3D isometric artwork (server, storage, cloud, user, ...); aws, azure, gcp and kubernetes are flat vendor icons. Find ids with search_icons.
+Icons are one bundled set of generic isometric nouns (server, database, queue, gateway, user, ...), without vendor logos: put the product name in the item's name. Find ids with search_icons, which also answers to product names such as postgres, kafka or lambda.
 Tiles are integer {x, y}. In the picture +x runs toward the upper right and +y toward the upper left; keep items about 3 tiles apart.
 Every change is recorded as a revision, so restore_revision undoes a mistake. Only the newest 100 revisions are kept, plus the original and any checkpoint you name with save_checkpoint.`;
 
@@ -101,15 +101,14 @@ export function createMcpServer(store: Store, options: { publicUrl: string }): M
     {
       title: 'Search icons',
       description:
-        'Find icon ids by keyword. The "isoflow" collection (37 isometric icons such as server, storage, cloud, user, loadbalancer, queue, firewall) suits generic architecture; aws, azure, gcp and kubernetes hold flat vendor icons. An empty query lists a collection.',
+        'Find icon ids by keyword in the bundled set of isometric icons: generic nouns such as server, database, queue, gateway, user, cloud. Product names find their noun ("postgres" finds database, "s3" finds bucket). An empty query lists the whole set.',
       inputSchema: {
-        query: z.string().describe('Keywords, e.g. "load balancer" or "s3".'),
-        collection: z.enum(ICON_COLLECTIONS).optional(),
+        query: z.string().describe('Keywords, e.g. "load balancer" or "postgres".'),
         limit: z.number().int().min(1).max(100).optional().describe('Defaults to 20.')
       },
       annotations: { readOnlyHint: true, openWorldHint: false }
     },
-    ({ query, collection, limit }) => text(searchIcons(query, { collection, limit }))
+    ({ query, limit }) => text(searchIcons(query, { limit }))
   );
 
   server.registerTool(
@@ -304,7 +303,7 @@ export function createMcpServer(store: Store, options: { publicUrl: string }): M
     {
       title: 'Export project',
       description:
-        'Return the project as Isoflow model JSON. With standalone=true the icons its items use are embedded, giving a file the open-source Isoflow editor opens directly; that output is much larger.',
+        'Return the project as model JSON in the Isoflow format. With standalone=true the bundled icons its items use are embedded, so the file is complete on its own for other tools; that output is larger.',
       inputSchema: { project, standalone: z.boolean().optional() },
       annotations: { readOnlyHint: true, openWorldHint: false }
     },
@@ -319,7 +318,7 @@ export function createMcpServer(store: Store, options: { publicUrl: string }): M
     {
       title: 'Import project',
       description:
-        'Create a project from Isoflow model JSON (title, items, views, and optionally colors and icons). Icons from the bundled catalog do not need to be included.',
+        'Create a project from model JSON in the Isoflow format (title, items, views, and optionally colors and icons). Bundled icons need not be included; any other icon an item names must be carried in icons.',
       inputSchema: {
         name: z.string().min(1).max(100).optional().describe('Defaults to the model title.'),
         model: z.record(z.string(), z.unknown())

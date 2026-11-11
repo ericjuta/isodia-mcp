@@ -25,12 +25,12 @@ const spec = {
   nodes: [
     { id: 'customers', name: 'Customers', icon: 'user', group: 'edge' },
     { id: 'cdn', name: 'CDN', icon: 'cloud', group: 'edge' },
-    { id: 'waf', name: 'WAF', icon: 'gcp-security', group: 'edge' },
-    { id: 'gateway', name: 'API gateway', icon: 'aws-api-gateway', group: 'app' },
-    { id: 'storefront', name: 'Storefront', icon: 'azure-browser', group: 'app' },
-    { id: 'orders', name: 'Orders', icon: 'aws-lambda', group: 'app' },
+    { id: 'waf', name: 'WAF', icon: 'shield', group: 'edge' },
+    { id: 'gateway', name: 'API gateway', icon: 'gateway', group: 'app' },
+    { id: 'storefront', name: 'Storefront', icon: 'browser', group: 'app' },
+    { id: 'orders', name: 'Orders', icon: 'function-module', group: 'app' },
     { id: 'payments', name: 'Payments', icon: 'paymentcard', group: 'app' },
-    { id: 'inventory', name: 'Inventory', icon: 'aws-database', group: 'data' },
+    { id: 'inventory', name: 'Inventory', icon: 'database', group: 'data' },
     { id: 'warehouse', name: 'Warehouse', icon: 'storage', group: 'data' }
   ],
   edges: [

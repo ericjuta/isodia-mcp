@@ -4,8 +4,8 @@
  * what an agent did, where you are, and what has keyboard focus.
  *
  * Paper and ink repeat src/core/theme.ts, which the renderer draws with; keep the two in step.
- * Rules are class-scoped on purpose: the embedded editor lives in the same document, and bare
- * `button` or `input` rules would leak into it.
+ * Rules are class-scoped: a control looks the way it does because of the class it carries, not
+ * because of the element it happens to be.
  */
 
 :root {
@@ -394,20 +394,334 @@ span.title {
   flex: 1;
   position: relative;
   min-width: 0;
-  /* The editor's own controls and labels inherit the typeface instead of asking for Roboto. */
-  font-family: var(--sans);
 }
 
-.canvas .MuiTypography-root,
-.canvas .MuiButtonBase-root,
-.canvas .MuiInputBase-root {
-  font-family: inherit;
+/* The canvas: the renderer's drawing, with the editing controls floating over it. */
+
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--paper);
 }
 
-/* The editor's floating controls: same border and lift as the app's own menus. */
-.canvas .MuiCard-root {
-  border-color: var(--line-strong);
+.stage-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.stage-svg:active {
+  cursor: grabbing;
+}
+
+.tool-connect .stage-svg,
+.tool-region .stage-svg,
+.tool-text .stage-svg {
+  cursor: crosshair;
+}
+
+.grid-line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-opacity: 0.09;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Marks drawn over the diagram keep their weight on screen whatever the zoom. */
+.overlay * {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.overlay .hover {
+  stroke: var(--ink);
+  stroke-opacity: 0.28;
+  stroke-width: 1.5;
+}
+
+/* Selection is "where you are", which is what the accent is for. */
+.overlay .selected {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.overlay .selected.line {
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-opacity: 0.85;
+}
+
+.overlay .handle {
+  fill: var(--raised);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.overlay .pending {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+}
+
+.toolbar,
+.zoombar,
+.inspector,
+.picker {
+  position: absolute;
+  z-index: 5;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+}
+
+.toolbar {
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+}
+
+.toolbar .rule {
+  margin: 0 2px;
+}
+
+.zoombar {
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  padding: 3px;
+}
+
+.zoom-value {
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.tool-hint {
+  position: absolute;
+  top: 64px;
+  left: 12px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.tool-hint .aside {
+  color: var(--ink-3);
+}
+
+.stage-message {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: min(520px, calc(100% - 200px));
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--paper);
+  background: var(--ink);
+  border-radius: var(--radius);
+}
+
+.stage-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--ink-2);
+  pointer-events: none;
+}
+
+.stage-empty p {
+  margin: 0;
+}
+
+.stage-empty .btn {
+  pointer-events: auto;
+}
+
+/* Floating, so they lift: the same rule as menus and dialogs. */
+.inspector,
+.picker {
   box-shadow: var(--lift);
+}
+
+.inspector {
+  top: 12px;
+  right: 12px;
+  width: 264px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.inspector h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inspector-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.inspector .notes {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+.prop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.prop-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.prop .field,
+.prop .btn.icon-choice {
+  flex: none;
+  width: 100%;
+}
+
+.field.area {
+  height: auto;
+  padding: 7px 9px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.btn.icon-choice {
+  justify-content: flex-start;
+  height: 36px;
+}
+
+.btn.icon-choice img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.btn.destructive:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.swatch[aria-pressed='true'] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.picker {
+  top: 64px;
+  left: 12px;
+  width: 372px;
+  max-height: min(520px, calc(100% - 140px));
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-head {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.picker-empty {
+  margin: 0;
+  padding: 16px;
+}
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.picker-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  font: 400 11px/1.2 var(--sans);
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.picker-icon:hover,
+.picker-icon:focus-visible {
+  color: var(--ink);
+  background: var(--paper);
+  border-color: var(--line-strong);
+  outline: none;
+}
+
+.picker-icon img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+.picker-icon span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .loading {

@@ -4,7 +4,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { Hono, type MiddlewareHandler } from 'hono';
 import { z } from 'zod';
 import pkg from '../../package.json';
-import { ICON_COLLECTIONS, searchIcons, withReferencedIcons } from '../core/icons';
+import { searchIcons, withReferencedIcons } from '../core/icons';
 import { applyOperations, buildDiagram, DiagramError, findView } from '../core/model';
 import { diagramSpecSchema, operationSchema } from '../core/operations';
 import { svgToPng } from '../core/png';
@@ -37,7 +37,6 @@ const renderSchema = z.object({
 });
 const iconQuerySchema = z.object({
   q: z.string().default(''),
-  collection: z.enum(ICON_COLLECTIONS).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional()
 });
 
@@ -119,7 +118,7 @@ export function createApp(store: Store, config: AppConfig): Hono {
     const saved = store.updateModel(
       c.req.param('id'),
       { source: 'editor', summary: 'Edited in the editor', expectedRevision: baseRevision },
-      // Checked by the store, which validates every model against the editor schema.
+      // Checked by the store, which validates every model against the model schema.
       () => model as unknown as Model
     );
     return c.json({ revision: saved.revision, updatedAt: saved.updatedAt });
@@ -188,8 +187,8 @@ export function createApp(store: Store, config: AppConfig): Hono {
   });
 
   app.get('/api/icons', (c) => {
-    const { q, collection, limit } = iconQuerySchema.parse(c.req.query());
-    return c.json(searchIcons(q, { collection, limit }));
+    const { q, limit } = iconQuerySchema.parse(c.req.query());
+    return c.json(searchIcons(q, { limit }));
   });
 
   // Share links are the credential: these routes are deliberately outside the token guard.

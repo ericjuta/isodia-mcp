@@ -210,7 +210,7 @@ export class Store {
   /** Create a project from Isoflow model JSON of unknown provenance; absent collections are empty. */
   importProject(raw: Record<string, unknown>, name?: string): Project {
     const title = typeof raw.title === 'string' && raw.title !== '' ? raw.title : 'Imported diagram';
-    // The cast is checked immediately: createProject validates against the editor schema.
+    // The cast is checked immediately: createProject validates against the model schema.
     const model = { items: [], views: [], icons: [], colors: [], ...raw, title } as Model;
     return this.createProject({ name: name ?? title, model }, 'import');
   }

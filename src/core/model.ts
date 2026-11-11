@@ -4,7 +4,7 @@ import { layoutGraph } from './layout';
 import type { DiagramSpec, Operation } from './operations';
 import { textBoxSpan, textToHtml } from './text';
 import { CONNECTOR_COLOR, GROUP_COLORS, PALETTE, REGION_COLOR } from './theme';
-import type { AnchorRef, Connector, ConnectorStyle, Coords, Model, View } from './types';
+import type { AnchorRef, Connector, ConnectorStyle, Coords, Model, Rectangle, View } from './types';
 
 /** A request the diagram cannot satisfy; the message is written for the caller to act on. */
 export class DiagramError extends Error {
@@ -26,9 +26,9 @@ export function colorName(model: Model, id: string): string {
   return value ?? id;
 }
 
-/** Items added without an icon get the editor's generic block, so they are never invisible. */
+/** Items added without an icon get the generic block, so they are never invisible. */
 const DEFAULT_ICON = 'block';
-/** Label stalk height the editor gives items it places itself. */
+/** Height of the stalk between a new item and its label. */
 const LABEL_HEIGHT = 80;
 /** Lattice step used when an item is added without a tile. */
 const ITEM_GAP = 3;
@@ -65,7 +65,7 @@ export function findView(model: Model, ref?: string): View {
   throw new DiagramError(`Unknown view "${ref}". Views: ${known || 'none'}.`);
 }
 
-/** Model items exist to be shown; one that no view places is unreachable in the editor. */
+/** Model items exist to be shown; one that no view places cannot be reached on any canvas. */
 function pruneOrphanItems(draft: Model): void {
   const placed = new Set(draft.views.flatMap((view) => view.items.map((item) => item.id)));
   draft.items = draft.items.filter((item) => placed.has(item.id));
@@ -251,20 +251,73 @@ function addRegion(
   const to = { x: Math.max(input.from.x, input.to.x), y: Math.max(input.from.y, input.to.y) };
   (view.rectangles ??= []).push({ id: input.id, color: colorId(draft, input.color ?? REGION_COLOR), from, to });
   if (input.label) {
-    const texts = (view.textBoxes ??= []);
     // The title sits on its own row inside the region's upper edge, so it never collides with a
     // node label or a connector.
-    const titleTile = input.titleTile ?? { x: from.x + REGION_PAD, y: to.y - REGION_PAD };
+    const region = view.rectangles!.at(-1)!;
+    titleRegion(view, region, input.label);
+    if (input.titleTile) view.textBoxes!.find((text) => text.id === `${input.id}-label`)!.tile = input.titleTile;
+  }
+}
+
+/** Set, change or (with an empty string) remove the title a region carries along its upper edge. */
+function titleRegion(view: View, region: Rectangle, label: string): void {
+  const texts = (view.textBoxes ??= []);
+  const id = `${region.id}-label`;
+  const title = texts.find((text) => text.id === id);
+  if (label === '') {
+    view.textBoxes = texts.filter((text) => text.id !== id);
+  } else if (title) {
+    title.content = label;
+  } else {
     texts.push({
-      id: uniqueId(
-        `${input.id}-label`,
-        texts.map((text) => text.id)
-      ),
-      tile: titleTile,
-      content: input.label,
+      id,
+      tile: {
+        x: Math.min(region.from.x, region.to.x) + REGION_PAD,
+        y: Math.max(region.from.y, region.to.y) - REGION_PAD
+      },
+      content: label,
       fontSize: REGION_LABEL_FONT_SIZE,
       orientation: 'X'
     });
+  }
+}
+
+/**
+ * Shift a region and everything standing in it. All of it moves at once, so contents may land
+ * on tiles other contents just left; only something that stays behind can be in the way.
+ */
+function moveRegion(view: View, region: Rectangle, by: Coords): void {
+  const lowX = Math.min(region.from.x, region.to.x);
+  const highX = Math.max(region.from.x, region.to.x);
+  const lowY = Math.min(region.from.y, region.to.y);
+  const highY = Math.max(region.from.y, region.to.y);
+  const inside = (tile: Coords): boolean => tile.x >= lowX && tile.x <= highX && tile.y >= lowY && tile.y <= highY;
+  const shift = (tile: Coords): Coords => ({ x: tile.x + by.x, y: tile.y + by.y });
+
+  const moving = view.items.filter((item) => inside(item.tile));
+  const staying = view.items.filter((item) => !inside(item.tile));
+  for (const item of moving) {
+    const target = shift(item.tile);
+    const occupant = staying.find((other) => other.tile.x === target.x && other.tile.y === target.y);
+    if (occupant) {
+      throw new DiagramError(`Tile (${target.x}, ${target.y}) is taken by "${occupant.id}", which is outside the region.`);
+    }
+  }
+
+  for (const item of moving) item.tile = shift(item.tile);
+  for (const rectangle of view.rectangles ?? []) {
+    if (rectangle === region || (inside(rectangle.from) && inside(rectangle.to))) {
+      rectangle.from = shift(rectangle.from);
+      rectangle.to = shift(rectangle.to);
+    }
+  }
+  for (const text of view.textBoxes ?? []) {
+    if (inside(text.tile) || text.id === `${region.id}-label`) text.tile = shift(text.tile);
+  }
+  for (const connector of view.connectors ?? []) {
+    for (const anchor of connector.anchors) {
+      if (anchor.ref.tile && inside(anchor.ref.tile)) anchor.ref.tile = shift(anchor.ref.tile);
+    }
   }
 }
 
@@ -460,13 +513,21 @@ function applyOperation(draft: Model, view: View, op: Operation): string {
       if (op.from) region.from = op.from;
       if (op.to) region.to = op.to;
       if (op.color !== undefined) region.color = colorId(draft, op.color);
+      if (op.label !== undefined) titleRegion(view, region, op.label);
       return `Updated region "${region.id}".`;
+    }
+    case 'move_region': {
+      const region = (view.rectangles ?? []).find((candidate) => candidate.id === op.region);
+      if (!region) throw unknown('region', op.region, view.rectangles);
+      moveRegion(view, region, op.by);
+      return `Moved region "${region.id}" by (${op.by.x}, ${op.by.y}).`;
     }
     case 'remove_region': {
       if (!(view.rectangles ?? []).some((rectangle) => rectangle.id === op.region)) {
         throw unknown('region', op.region, view.rectangles);
       }
       view.rectangles = view.rectangles!.filter((rectangle) => rectangle.id !== op.region);
+      view.textBoxes = (view.textBoxes ?? []).filter((text) => text.id !== `${op.region}-label`);
       return `Removed region "${op.region}".`;
     }
     case 'add_text': {

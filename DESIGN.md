@@ -1,7 +1,8 @@
 # Design
 
-How isodia looks, and why. This file covers two surfaces that must agree: the web app
-around the editor, and the pictures the renderer exports.
+How isodia looks, and why. This file covers four things that must agree: the web app, the
+canvas you edit on, the icons, and the pictures the renderer exports. All four are ours; none
+is a themed copy of someone else's component.
 
 The values below are copied from `src/core/theme.ts` (what the renderer draws with) and
 `web/src/styles.css` (the app's CSS variables). If this file and the code disagree, the code
@@ -28,12 +29,18 @@ Three consequences follow, and most rules below are one of them restated:
 - **No second accent.** If two things need highlighting, one of them does not.
 - **No coloured lines by default.** A line that is coloured for no reason teaches the reader
   that line colour means nothing.
-- **No icons in the chrome.** Words for actions (`History`, `Share`, `Export`, `Agent`). The
-  only glyphs are `+`, `⋯` and `×`, and each has an accessible name.
+- **No pictograms in the chrome.** Words for actions and tools (`History`, `Share`, `Select`,
+  `Connect`, `Region`, `Undo`). A word is read once; a pictogram is guessed every time. The
+  only glyphs are `+`, `−`, `⋯` and `×`, and each has an accessible name.
+- **No hue in an icon.** Icons are paper and ink. Colour belongs to regions.
+- **No vendor artwork.** No AWS, Azure, Google or Kubernetes logos ship with isodia. A
+  `database` is a database whoever hosts it; name the product in the label. A project can
+  still carry its own icons in the model.
 - **No native `prompt`, `confirm` or `alert`.** Use `askText` and `askConfirm` from
   `web/src/ui.tsx`.
-- **No bare element selectors in CSS.** The embedded editor shares the document; a `button {}`
-  rule restyles its toolbar. Every rule is class-scoped (`.btn`, `.field`, `.tab`).
+- **No bare element selectors in CSS.** Every rule is class-scoped (`.btn`, `.field`, `.tab`).
+  A control looks the way it does because of the class it carries, so markup can change
+  element without changing look.
 - **No theming of a picture after the fact.** The renderer draws what the model stores. It
   does not recolour old diagrams to match a new palette.
 
@@ -53,8 +60,8 @@ Three consequences follow, and most rules below are one of them restated:
 | `--line-strong` | `#cfcabc` | Control and menu borders | 1.5 |
 | `--wash` | ink at 6% | Hover, segmented track, neutral badge | n/a |
 
-Paper is warm on purpose. Pure white makes the washes look grey and the vendor icons look
-pasted on; a slightly yellow ground makes both sit in the page.
+Paper is warm on purpose. On pure white the washes look grey and an icon's white top face
+has nothing to stand against; on a slightly yellow ground a white face reads as lit.
 
 There is one ink. Do not introduce a "brand dark", a blue-black or a second grey ramp.
 
@@ -70,10 +77,10 @@ There is one ink. Do not introduce a "brand dark", a blue-black or a second grey
 | `--danger` | `#b3261e` | Failed save, destructive confirm | 6.0 |
 
 The accent is a burnt orange because nothing in the diagram palette is: every wash is pale,
-so a saturated warm colour can only be chrome. It is spent on exactly four things: the top
-face of the mark, the underline of the active view tab, the focus ring, and anything an agent
-did (the `mcp` badge in history, the Agent dot, the live dot on a share page). A new use has
-to displace one of those.
+so a saturated warm colour can only be chrome. It is spent on exactly three things: the top
+face of the mark; where you are (the underline of the active view tab, the focus ring, the
+outline of what is selected on the canvas); and anything an agent did (the `mcp` badge in
+history, the Agent dot, the live dot on a share page). A new use has to displace one of those.
 
 Status colours appear only as a 7 px dot beside a word, or as the text of an error, never
 without the word. The single filled use is the confirm button of a destructive dialog.
@@ -103,12 +110,13 @@ Stored in every model as `colors`. Tools refer to entries by name.
 - **Groups take colours in a fixed order** when a diagram does not choose: blue, teal, purple,
   green, orange, yellow, red. Red is last because it reads as a warning, and an arbitrary
   seventh group is not one.
-- **Palette entries are the final values.** The editor paints them as stored, so the canvas
-  and the export agree. Do not tint again in the renderer.
+- **Palette entries are the final values.** They are painted as stored. Do not tint again in
+  the renderer.
 
-Colours travel with the model. A project made before a palette change, or in the open-source
-editor, keeps the colours it was drawn with; the `upstream` field in `PALETTE` keeps those
-older values readable by name. Changing `PALETTE` affects new and rebuilt diagrams only.
+Colours travel with the model. A project made before a palette change, or imported from
+another tool that writes the Isoflow format, keeps the colours it was drawn with; the
+`upstream` field in `PALETTE` keeps the common older values readable by name. Changing
+`PALETTE` affects new and rebuilt diagrams only.
 
 ### Type
 
@@ -148,9 +156,10 @@ one rendered on a laptop. System fonts remain as fallback for scripts Plex lacks
 | Dashboard measure | 1120 px, cards at least 300 px, 16 px gap |
 | Panel padding and gap | 16 px / 12 px |
 
-Surfaces are separated by a 1 px hairline. Exactly two things cast a shadow, because exactly
-two things float above the page: menus and dialogs (`--lift`). The editor's own floating
-controls are given the same border and lift so they belong to the same family.
+Surfaces are separated by a 1 px hairline. A shadow (`--lift`) means "this is temporarily in
+front of something": menus, dialogs, and on the canvas the inspector and the icon picker,
+which appear over the drawing and go away. The toolbar and the zoom control are always there,
+so they rest on the canvas with a hairline and no shadow.
 
 ### Motion
 
@@ -186,11 +195,75 @@ No entrance animations, no page transitions.
   Not "version", "tab", "URL", "AI".
 - Times are relative for a week, then a date; the exact time is on hover.
 
+## Icons
+
+Icons are **paper models**: a thing built from a few folded solids, standing on its tile,
+lit from the upper left. They are generated from code in `src/core/iconset/`, on the same
+projection as the tiles, so an icon's footprint sits exactly on its diamond.
+
+| Part | Value |
+| --- | --- |
+| Top face | `#ffffff` |
+| Left face | `#ece9e0` |
+| Right face | `#d9d5ca` |
+| Outline and details | ink `#1b1d22`, round joins; secondary details ink at 45% |
+| Outline weight | 2.5 px at drawn size (an icon is drawn 113 px wide), details 2 px |
+
+- **No hue.** A coloured icon competes with the region it stands in and says nothing: which
+  blue is "database"? Three paper tones and one ink are enough to tell forty things apart.
+- **One idea per icon.** A cylinder is a database. A cylinder with a clock, a lock and a
+  plug is nothing. If an icon needs a second idea it is two items.
+- **Silhouette first.** Icons are met at about 48 px in an exported picture. Neighbours must
+  differ in outline (slab, cube, tower, cylinder, stack), not in an interior detail.
+- **Generic nouns, searchable by the names people use.** The id is the plain noun
+  (`database`, `queue`, `function-module`); the search also answers to `postgres`, `kafka`,
+  `lambda`. The product name goes in the item's label, where it can be read.
+- **No gradients, shadows or filters**, and no type set in a font: a letter on an icon is
+  drawn as a path, so it renders the same everywhere.
+- **`block` is the icon of an item that has none.** Nothing on the canvas is ever invisible.
+
+To add an icon, define it from the kit's primitives, give it keywords, render the contact
+sheet (`bun scripts/icon-sheet.ts --out sheet.png`) and judge it at the 48 px size next to its
+neighbours. The ids from the original Isoflow set are kept, so a file made elsewhere opens
+with our drawing of the same noun.
+
+## The canvas
+
+The canvas is not a separate editor with its own idea of the diagram. It is the renderer's
+drawing of the view, placed in the page, with editing on top.
+
+- **One drawing.** `renderScene` in `src/core/render.ts` draws the canvas and the export.
+  What you edit is what you export, to the pixel; there is no "editor look".
+- **One vocabulary of change.** Every control applies the same operations an agent sends over
+  MCP (`move_item`, `connect`, `update_region`…). A person and an agent cannot produce
+  different kinds of diagram, and a refusal reads the same to both.
+- **Presses resolve to tiles, then to things.** A press finds its tile and then what stands
+  there: item, then text, then connector, then the smallest region. A tall icon or a label
+  never steals a press meant for the thing behind it.
+- **Tools are words**, in one bar: `Select`, `Connect`, `Region`, `Text`, then `Add item`,
+  `Undo`, `Redo`, `Tidy`. While a tool other than Select is armed, one line under the bar
+  says what the next click does. A tool disarms after one use.
+- **Selection is an accent outline on the ground**, not a glow around the artwork: the tile
+  for an item, the footprint for a region or text, the route for a connector. A selected
+  region shows four round handles on its corner tiles.
+- **The inspector edits the selection** and shows the edit on the canvas while you type; the
+  edit is recorded once, when you leave the field. Something just created has its first field
+  focused, so adding a thing and naming it is one motion.
+- **A faint tile grid** is drawn only when editing. A share page shows paper.
+- **Dragging a region moves what stands in it.** A region is a boundary; moving the boundary
+  and leaving its contents behind is never what was meant.
+- **Wheel pans; Ctrl or Cmd with the wheel (and a pinch) zooms about the pointer.** Zoom
+  stops at 200%: past that you are inspecting pixels, not a diagram.
+- **Undo is local and ends where someone else's change begins.** A change arriving from an
+  agent or another tab clears the undo history, because undoing across it would silently
+  discard their work. The revision history is the undo that spans people.
+- **Read-only is the same canvas** without the grid, the bar and the fields. Clicking an item
+  still answers "what is this?" with its name and notes.
+
 ## The picture
 
-The renderer follows the editor for geometry (same projection, same matrices, same draw order)
-and departs from it for finish. The editor is a working surface seen zoomed in. The export is
-read small.
+The picture is the canvas's drawing with a margin around it. Its finish is chosen for the
+size it is read at, which is small.
 
 - **Background** is paper, with 40 px of margin. Pass `background: null` for transparent.
 - **Regions** are a wash with a 2.5 px edge in a slightly deeper version of the same colour
@@ -243,11 +316,20 @@ Known, not fixed. Listed so nobody rediscovers them or mistakes them for intent.
 
 - **Control borders are 1.5:1.** Controls are identified by their white fill on paper and
   their label, not the border. Accepted for buttons; weakest on empty text fields.
-- **The editor's tool highlight is MUI blue.** `isoflow@1.1.1` builds its own theme and
-  exposes no hook. So are in-editor label sizes and the 60 px region titles. Fixing these
-  means forking the editor.
-- **The `server` and `router` icons carry stray specks** to the right of the artwork. They
-  are in the upstream SVGs and show in the editor and in exports alike.
+- **The canvas needs a pointer.** Tools, fields and dialogs work from the keyboard, but
+  selecting and moving things on the canvas does not. An agent or the API is the keyboard
+  path today.
+- **Touch pans and edits but cannot pinch-zoom.** Zoom on a touch screen is the `+` and `−`
+  buttons.
+- **One thing is selected at a time.** There is no marquee and no shift-click, so moving
+  several loose items means moving them one by one or drawing a region around them.
+- **A connector's route cannot be bent by hand.** Waypoints exist in the model and agents can
+  set them (`via`), but the canvas has no handle for them.
+- **An item's label height is fixed** at what it was created with; the canvas has no control
+  for it.
+- **Region titles are 60 px type on the tile plane**, large beside 22 px item labels. The size
+  is stored per title, and layout reserves space from it, so changing the default is a
+  layout change, not a style one.
 - **Lines still cross region titles.** The halo keeps the title legible; the real fix is
   routing in `src/core/layout.ts`.
 - **A connector pill can slide partly under a neighbouring icon** when items sit three tiles
@@ -265,8 +347,8 @@ Known, not fixed. Listed so nobody rediscovers them or mistakes them for intent.
 3. Run `bunx tsc --noEmit`, `bun test` and `bun run build`.
 4. Render the worked example and look at the PNGs at 1600 px, then at half that.
 5. Run `scripts/browser-check.ts` against a production build. It finds controls by selector
-   (`.seg button`, `[title="Add a view"]`, `[aria-label="View actions"]`), so chrome changes
-   may need it updated.
+   and by their words (`.toolbar .btn` "Connect", `.inspector [aria-label="Name"]`,
+   `[title="Add a view"]`), so chrome changes may need it updated.
 6. A font or dependency change alters the lockfile: rebuild the image and compare a PNG from
    the container with a host render of the same project, byte for byte.
 7. Pictures already committed to other repositories do not regenerate themselves.
@@ -288,4 +370,12 @@ serves. If the answer is "it looks nicer", it does not go in.
 | 2026-11-11 | Native prompts replaced by in-app dialogs | Browser dialogs cannot mask a token, name a consequence or match the page |
 | 2026-11-11 | `--ink-3` darkened to `#6b6e76`; `--accent-ink` added for badge text | Both carried 11 to 12 px text below 4.5:1 (3.1 and 3.6). "Safe to miss" still has to be readable |
 | 2026-11-11 | History panel says "revision" | It was the only place that said "version" |
+| 2026-11-11 | Our own model schema | The server loaded an editor bundle to check a file. The rules are now ours and stricter: whole tiles, unique ids, every reference resolved |
+| 2026-11-11 | Our own icon set, paper models without hue | Borrowed icons brought five styles and four licences. One generated set has one look, and leaves colour to regions |
+| 2026-11-11 | Vendor icon packs dropped | Logos age, carry trademark terms and turn a diagram into an advertisement. A generic noun plus a label says more |
+| 2026-11-11 | Our own canvas, drawn by the export renderer | Two renderers meant the editor and the export disagreed about label size, colour and finish, and the editor could not be themed |
+| 2026-11-11 | Canvas edits are MCP operations | One definition of every change, shared by people and agents |
+| 2026-11-11 | Tools are words, not pictograms | Consistent with the rest of the chrome; five words need no legend |
+| 2026-11-11 | Selection drawn in the accent | Selection is "where you are", which is one of the three things the accent means |
+| 2026-11-11 | Removing a region removes its title; `update_region` sets it | The title was a loose text box that outlived its region and could not be changed through it |
 | 2026-11-11 | Named isodia (repository `isodia-mcp`); wordmark, MCP server name and `ISODIA_*` settings follow | The old name borrowed two other projects' names. A product gets one name of its own, used everywhere, with no aliases for the old one |

@@ -1,22 +1,54 @@
 /**
- * Browser smoke test of the web app: dashboard, editor, agent sync, history, share link.
- * Requires the API (port 4400) and Vite (port 4401) to be running, and a Chrome or Chromium
- * binary named by CHROME_PATH.
+ * Browser smoke test of the web app: dashboard, the editor's tools, agent sync, history, views
+ * and share links. It needs a running server (the API alone is enough when it serves the built
+ * app; in development, the API on 4400 and Vite on 4401), a seeded demo project
+ * (`bun scripts/seed-demo.ts`) and a Chrome or Chromium binary named by CHROME_PATH.
  *
  *   CHROME_PATH=/usr/bin/chromium bun scripts/browser-check.ts
+ *
+ * Screenshots go to SHOTS (default /tmp/isodia-check). Exits non-zero on the first failure.
  */
+import { mkdir } from 'node:fs/promises';
 import puppeteer, { type HTTPRequest, type Page } from 'puppeteer-core';
+import { tileCenter } from '../src/core/render';
+import type { Coords, Model } from '../src/core/types';
 
 const CHROME = process.env.CHROME_PATH;
 if (CHROME === undefined) throw new Error('Set CHROME_PATH to a Chrome or Chromium binary.');
 const WEB = process.env.WEB_URL ?? 'http://127.0.0.1:4401';
 const API = process.env.API_URL ?? 'http://127.0.0.1:4400';
 const PROJECT = process.env.PROJECT_ID ?? 'payments-platform';
+const SHOTS = process.env.SHOTS ?? '/tmp/isodia-check';
+await mkdir(SHOTS, { recursive: true });
 
 const step = (message: string): void => console.log(`\n== ${message}`);
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-const getJson = async (path: string): Promise<Record<string, unknown>> =>
-  (await (await fetch(`${API}${path}`)).json()) as Record<string, unknown>;
+
+interface Project {
+  id: string;
+  revision: number;
+  model: Model;
+}
+const send = async <T>(path: string, method = 'GET', body?: unknown): Promise<T> => {
+  const response = await fetch(`${API}${path}`, {
+    method,
+    headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  return (response.status === 204 ? undefined : await response.json()) as T;
+};
+const project = (id: string): Promise<Project> => send<Project>(`/api/projects/${id}`);
+
+/** Wait until the server holds a project for which `test` passes; the editor saves on its own clock. */
+async function saved(id: string, what: string, test: (project: Project) => boolean): Promise<Project> {
+  let last: Project | undefined;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    last = await project(id);
+    if (test(last)) return last;
+    await pause(150);
+  }
+  throw new Error(`Not saved: ${what}. The server still holds ${JSON.stringify(last?.model.views[0]).slice(0, 400)}`);
+}
 
 const browser = await puppeteer.launch({
   executablePath: CHROME,
@@ -26,13 +58,21 @@ const browser = await puppeteer.launch({
 
 const failures: string[] = [];
 const watch = (page: Page): void => {
-  page.on('pageerror', (error) => failures.push(`pageerror: ${error.message}`));
+  page.on('pageerror', (error) => failures.push(`pageerror: ${error instanceof Error ? error.message : String(error)}`));
   page.on('console', (message) => {
-    if (message.type() === 'error') failures.push(`console: ${message.text().slice(0, 160)}`);
+    if (message.type() === 'error') failures.push(`console: ${message.text().slice(0, 300)}`);
   });
   page.on('response', (response) => {
     if (response.status() === 404) failures.push(`404: ${response.url()}`);
   });
+};
+
+const open = async (url: string): Promise<Page> => {
+  const page = await browser.newPage();
+  watch(page);
+  await page.setViewport({ width: 1440, height: 900 });
+  await page.goto(url, { waitUntil: 'networkidle2' });
+  return page;
 };
 
 /** Go ahead with the open dialog, typing `value` first when it asks for text. */
@@ -42,20 +82,13 @@ const answerDialog = async (page: Page, value?: string): Promise<void> => {
   await page.click('dialog[open] button[type="submit"]');
 };
 
-/** Pick an entry from the current view's menu. */
-const viewAction = async (page: Page, label: string): Promise<void> => {
-  await page.click('[aria-label="View actions"]');
-  await page.waitForSelector('[role="menu"]', { timeout: 5000 });
-  await clickByText(page, '[role="menuitem"]', label);
-};
-
 const clickByText = async (page: Page, selector: string, text: string): Promise<void> => {
   const clicked = await page.evaluate(
     (target, label) => {
       const element = [...document.querySelectorAll(target)].find(
         (node) => node.textContent?.trim() === label && node instanceof HTMLElement
       );
-      element?.click();
+      (element as HTMLElement | undefined)?.click();
       return Boolean(element);
     },
     selector,
@@ -64,120 +97,113 @@ const clickByText = async (page: Page, selector: string, text: string): Promise<
   if (!clicked) throw new Error(`No ${selector} with text "${text}"`);
 };
 
-const page = await browser.newPage();
-watch(page);
-await page.setViewport({ width: 1440, height: 900 });
+/** Pick an entry from the current view's menu. */
+const viewAction = async (page: Page, label: string): Promise<void> => {
+  await page.click('[aria-label="View actions"]');
+  await page.waitForSelector('[role="menu"]', { timeout: 5000 });
+  await clickByText(page, '[role="menuitem"]', label);
+};
+
+/** Where a tile's centre is on the page, from the pan and zoom the canvas reports. */
+const onScreen = async (page: Page, tile: Coords): Promise<Coords> => {
+  const stage = await page.$eval('[data-testid="stage"]', (node) => {
+    const box = node.getBoundingClientRect();
+    const data = (node as SVGSVGElement).dataset;
+    return { left: box.left, top: box.top, zoom: Number(data.zoom), panX: Number(data.panX), panY: Number(data.panY) };
+  });
+  const at = tileCenter(tile);
+  return { x: stage.left + stage.panX + at.x * stage.zoom, y: stage.top + stage.panY + at.y * stage.zoom };
+};
+
+const clickTile = async (page: Page, tile: Coords): Promise<void> => {
+  const at = await onScreen(page, tile);
+  await page.mouse.click(at.x, at.y);
+};
+
+const dragTiles = async (page: Page, from: Coords, to: Coords): Promise<void> => {
+  const start = await onScreen(page, from);
+  const end = await onScreen(page, to);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (let index = 1; index <= 12; index++) {
+    await page.mouse.move(start.x + ((end.x - start.x) * index) / 12, start.y + ((end.y - start.y) * index) / 12);
+    await pause(20);
+  }
+  await page.mouse.up();
+};
+
+const tool = (page: Page, label: string): Promise<void> => clickByText(page, '.toolbar .btn', label);
+
+/** Replace the text of the inspector field with this label, and leave the field. */
+const fill = async (page: Page, label: string, value: string): Promise<void> => {
+  const selector = `.inspector [aria-label="${label}"]`;
+  await page.waitForSelector(selector, { timeout: 5000 });
+  await page.click(selector, { count: 3 });
+  await page.keyboard.type(value);
+  await page.keyboard.press('Enter');
+};
+
+const page = await open(WEB);
 
 try {
   step('dashboard lists projects with server-rendered thumbnails');
-  await page.goto(WEB, { waitUntil: 'networkidle2' });
   await page.waitForSelector('.card strong', { timeout: 20000 });
   console.log('cards:', await page.$$eval('.card strong', (nodes) => nodes.map((node) => node.textContent)));
   await page.waitForSelector('.thumb img', { timeout: 30000 });
-  console.log(
-    'thumbnail:',
-    await page.$eval('.thumb img', (image) => ({
-      naturalWidth: (image as HTMLImageElement).naturalWidth,
-      naturalHeight: (image as HTMLImageElement).naturalHeight
-    }))
-  );
-  await page.screenshot({ path: '/tmp/rea-dashboard.png' });
+  const thumbnail = await page.$eval('.thumb img', (image) => (image as HTMLImageElement).naturalWidth);
+  if (thumbnail === 0) throw new Error('A project thumbnail did not load');
+  await page.screenshot({ path: `${SHOTS}/dashboard.png` });
 
-  step('editor loads the model an agent built over MCP');
-  await page.click('.card a');
-  await page.waitForSelector('.canvas img', { timeout: 30000 });
-  await pause(2500);
-  console.log(
-    await page.evaluate(() => ({
-      itemImages: document.querySelectorAll('.canvas img').length,
-      svgs: document.querySelectorAll('.canvas svg').length,
-      tabs: [...document.querySelectorAll('.tab')].map((node) => node.textContent?.trim()),
-      saveState: document.querySelector('[data-testid="save-state"]')?.textContent?.trim(),
-      labels: document.body.innerText.split('\n').filter((line) => line.trim() !== '').slice(12, 30)
-    }))
-  );
-  await page.screenshot({ path: '/tmp/rea-editor.png' });
+  step('the editor draws the project an agent built over MCP');
+  await page.click(`.card a[href="/p/${PROJECT}"]`);
+  await page.waitForSelector('.canvas [data-item]', { timeout: 30000 });
+  const stored = await project(PROJECT);
+  const drawn = await page.evaluate(() => ({
+    items: document.querySelectorAll('.canvas [data-item]').length,
+    connectors: document.querySelectorAll('.canvas [data-connector]').length,
+    regions: document.querySelectorAll('.canvas [data-region]').length,
+    icons: document.querySelectorAll('.canvas [data-item] image').length,
+    tabs: [...document.querySelectorAll('.tab')].map((node) => node.textContent?.trim()),
+    saveState: document.querySelector('[data-testid="save-state"]')?.textContent?.trim()
+  }));
+  console.log(drawn);
+  if (drawn.items !== stored.model.views[0].items.length) {
+    throw new Error(`The canvas draws ${drawn.items} items; the project has ${stored.model.views[0].items.length}`);
+  }
+  if (drawn.icons !== drawn.items) throw new Error(`${drawn.items - drawn.icons} items were drawn without an icon`);
+  await pause(1500);
+  if ((await project(PROJECT)).revision !== stored.revision) throw new Error('Opening a project wrote a revision');
+  await page.screenshot({ path: `${SHOTS}/editor.png` });
 
   step('history panel lists revisions with their sources and checkpoints');
-  await clickByText(page, '.seg button', 'History');
+  await clickByText(page, '.bar .seg button', 'History');
   await page.waitForSelector('.list li[data-revision]', { timeout: 20000 });
   console.log(
     'revisions:',
-    await page.$$eval('.list li[data-revision]', (nodes) =>
-      nodes.map((node) => node.textContent?.replace(/\s+/g, ' ').trim())
-    )
+    await page.$$eval('.list li[data-revision]', (nodes) => nodes.map((node) => node.textContent?.replace(/\s+/g, ' ').trim()))
   );
-  await page.screenshot({ path: '/tmp/rea-history.png' });
-  await clickByText(page, '.seg button', 'History');
+  await page.screenshot({ path: `${SHOTS}/history.png` });
+  await clickByText(page, '.bar .seg button', 'History');
 
   step('a change made elsewhere appears in the open editor, without a spurious save');
-  const before = await getJson(`/api/projects/${PROJECT}`);
-  const added = await (
-    await fetch(`${API}/api/projects/${PROJECT}/operations`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ operations: [{ op: 'add_item', name: 'Fraud scoring', icon: 'function-module' }] })
-    })
-  ).json();
-  console.log('agent change:', added);
-  await page.waitForFunction(() => document.body.innerText.includes('Fraud scoring'), { timeout: 30000 });
+  const added = await send<{ revision: number }>(`/api/projects/${PROJECT}/operations`, 'POST', {
+    operations: [{ op: 'add_item', name: 'Fraud scoring', icon: 'function-module' }]
+  });
+  await page.waitForSelector('.canvas [data-item="fraud-scoring"]', { timeout: 30000 });
   await pause(2500);
-  const afterRemote = await getJson(`/api/projects/${PROJECT}`);
-  console.log('revision before/after remote change:', before.revision, afterRemote.revision);
-  console.log('save state after remote change:', await page.$eval('[data-testid="save-state"]', (node) => node.textContent));
-  if (afterRemote.revision !== (added as { revision: number }).revision) {
-    throw new Error('Loading the remote change wrote a redundant revision');
-  }
-  await page.screenshot({ path: '/tmp/rea-editor-synced.png' });
+  const afterRemote = await project(PROJECT);
+  console.log('revision before/after remote change:', stored.revision, afterRemote.revision);
+  if (afterRemote.revision !== added.revision) throw new Error('Loading the remote change wrote a redundant revision');
+  await page.screenshot({ path: `${SHOTS}/editor-synced.png` });
 
-  step('a change in the editor is autosaved');
-  await page.click('[aria-label="Text"]');
-  await pause(500);
-  const canvasBox = await (await page.$('.canvas'))!.boundingBox();
-  await page.mouse.click(canvasBox!.x + 260, canvasBox!.y + canvasBox!.height - 200);
-  await pause(3000);
-  const afterEdit = await getJson(`/api/projects/${PROJECT}`);
-  console.log(
-    'revision after editor change:',
-    afterEdit.revision,
-    '| state:',
-    await page.$eval('[data-testid="save-state"]', (node) => node.textContent)
-  );
-  if ((afterEdit.revision as number) <= (afterRemote.revision as number)) {
-    throw new Error('The editor change was not saved');
-  }
-
-  step('dragging a node moves its tile and the move is saved');
-  // Dragging is hit-tested against tiles, and the icon (pointer-events:none) plus connectors can
-  // intercept a press, so use a throwaway project with one node and nothing else on the canvas.
-  // That keeps the press target unambiguous and independent of what earlier steps changed.
-  const dragProject = (await (
-    await fetch(`${API}/api/projects`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Drag check',
-        model: {
-          version: '1',
-          title: 'Drag check',
-          items: [{ id: 'solo', name: 'Solo', icon: 'cloud' }],
-          views: [{ id: 'main', name: 'Overview', items: [{ id: 'solo', tile: { x: 0, y: 0 } }] }],
-          icons: [],
-          colors: [{ id: 'color1', value: '#a5b8f3' }]
-        }
-      })
-    })
-  ).json()) as { id: string };
-
-  const dragPage = await browser.newPage();
-  watch(dragPage);
-  await dragPage.setViewport({ width: 1440, height: 900 });
+  step('every editing tool works on an empty project, and each edit is saved');
+  const scratch = await send<Project>('/api/projects', 'POST', { name: 'Editor check' });
+  const editor = await open(`${WEB}/p/${scratch.id}`);
   // One revision poll can be caught in flight and answered later by hand; the rest pass through.
   const heldPoll: { arm: boolean; request: HTTPRequest | null } = { arm: false, request: null };
-  await dragPage.setRequestInterception(true);
-  dragPage.on('request', (request) => {
-    const isPoll =
-      request.method() === 'GET' && new URL(request.url()).pathname === `/api/projects/${dragProject.id}/revision`;
+  await editor.setRequestInterception(true);
+  editor.on('request', (request) => {
+    const isPoll = request.method() === 'GET' && new URL(request.url()).pathname === `/api/projects/${scratch.id}/revision`;
     if (isPoll && heldPoll.arm) {
       heldPoll.arm = false;
       heldPoll.request = request;
@@ -185,197 +211,182 @@ try {
       void request.continue();
     }
   });
-  await dragPage.goto(`${WEB}/p/${dragProject.id}`, { waitUntil: 'networkidle2' });
-  await dragPage.waitForSelector('.canvas svg', { timeout: 30000 });
-  await pause(2500);
-
-  const soloIcon = await dragPage.evaluate(() => {
-    const image = document.querySelector('.canvas img') as HTMLImageElement | null;
-    if (!image) return null;
-    const box = image.getBoundingClientRect();
-    return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
-  });
-  if (!soloIcon) throw new Error('The editor rendered no node icon to drag');
-
-  const soloTile = async (): Promise<string> => {
-    const project = (await getJson(`/api/projects/${dragProject.id}`)) as unknown as {
-      model: { views: Array<{ items: Array<{ id: string; tile: unknown }> }> };
-    };
-    return JSON.stringify(project.model.views[0].items[0].tile);
-  };
-
-  const tileBefore = await soloTile();
-  const revisionBeforeDrag = (await getJson(`/api/projects/${dragProject.id}`)).revision as number;
-  // Catch a poll in flight, so that its answer predates the save the drag is about to cause.
-  heldPoll.arm = true;
-  for (let attempt = 0; attempt < 50 && heldPoll.request === null; attempt++) await pause(100);
-  if (heldPoll.request === null) throw new Error('The editor never polled for changes made elsewhere');
-  const start = { x: soloIcon.x, y: soloIcon.y + 40 };
-  await dragPage.mouse.move(start.x, start.y);
-  await dragPage.mouse.down();
-  await dragPage.mouse.move(start.x + 4, start.y - 2);
-  await pause(150);
-  for (let stepIndex = 1; stepIndex <= 20; stepIndex++) {
-    await dragPage.mouse.move(start.x + 4 + stepIndex * 12, start.y - 2 - stepIndex * 7);
-    await pause(45);
-  }
-  await dragPage.mouse.up();
-  await pause(4000);
-
-  const tileAfter = await soloTile();
-  const revisionAfterDrag = (await getJson(`/api/projects/${dragProject.id}`)).revision as number;
-  console.log(
-    'drag tile:',
-    tileBefore,
-    '->',
-    tileAfter,
-    '| revision',
-    revisionBeforeDrag,
-    '->',
-    revisionAfterDrag,
-    '| state:',
-    await dragPage.$eval('[data-testid="save-state"]', (node) => node.textContent)
-  );
-  await dragPage.screenshot({ path: '/tmp/rea-dragged.png' });
   try {
-    if (tileAfter === tileBefore) throw new Error('Dragging a node did not move its tile');
-    if (revisionAfterDrag <= revisionBeforeDrag) throw new Error('The dragged position was not saved');
+    const view = (state: Project) => state.model.views[0];
 
-    step('a poll answered before a save, but delivered after it, is not taken for a change made elsewhere');
-    await heldPoll.request.respond({
+    // The empty state offers the first item; the picker finds an icon by a word that is not its id.
+    await clickByText(editor, '.stage-empty .btn', 'Add the first item');
+    await editor.waitForSelector('.picker input', { timeout: 5000 });
+    await editor.type('.picker input', 'postgres');
+    await editor.waitForSelector('.picker-icon[data-icon="database"]', { timeout: 5000 });
+    await editor.keyboard.press('Enter');
+    await fill(editor, 'Name', 'Orders DB');
+    let state = await saved(scratch.id, 'the first item, named', (now) => now.model.items.some((item) => item.name === 'Orders DB'));
+    const db = state.model.items[0];
+    if (db.icon !== 'database') throw new Error(`Searching "postgres" picked icon "${db.icon}", not "database"`);
+    const dbTile = view(state).items[0].tile;
+    console.log('added:', db.id, 'at', JSON.stringify(dbTile));
+
+    await tool(editor, 'Add item');
+    await editor.waitForSelector('.picker-icon[data-icon="server"]', { timeout: 5000 });
+    await editor.click('.picker-icon[data-icon="server"]');
+    await fill(editor, 'Name', 'API');
+    state = await saved(scratch.id, 'a second item, named', (now) => now.model.items.some((item) => item.name === 'API'));
+    const apiId = state.model.items.find((item) => item.name === 'API')!.id;
+    const apiTile = view(state).items.find((item) => item.id === apiId)!.tile;
+    if (apiTile.x === dbTile.x && apiTile.y === dbTile.y) throw new Error('The second item landed on the first');
+
+    await tool(editor, 'Connect');
+    await clickTile(editor, apiTile);
+    await clickTile(editor, dbTile);
+    await fill(editor, 'Label', 'SQL');
+    state = await saved(scratch.id, 'a labelled connector', (now) => view(now).connectors?.[0]?.description === 'SQL');
+    const connector = view(state).connectors![0];
+    if (connector.anchors[0].ref.item !== apiId || connector.anchors.at(-1)!.ref.item !== db.id) {
+      throw new Error('The connector does not run from the first item clicked to the second');
+    }
+
+    step('dragging an item moves its tile; a stale poll answer is not taken for a change made elsewhere');
+    heldPoll.arm = true;
+    for (let attempt = 0; attempt < 50 && heldPoll.request === null; attempt++) await pause(100);
+    if (heldPoll.request === null) throw new Error('The editor never polled for changes made elsewhere');
+    const revisionBeforeDrag = state.revision;
+    const target = { x: apiTile.x + 2, y: apiTile.y + 3 };
+    await dragTiles(editor, apiTile, target);
+    state = await saved(scratch.id, 'the dragged position', (now) => {
+      const tile = view(now).items.find((item) => item.id === apiId)!.tile;
+      return tile.x === target.x && tile.y === target.y;
+    });
+    console.log('drag:', JSON.stringify(apiTile), '->', JSON.stringify(target), '| revision', revisionBeforeDrag, '->', state.revision);
+    await (heldPoll.request as HTTPRequest).respond({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ revision: revisionBeforeDrag })
     });
     await pause(1500);
-    const lateNotice = await dragPage.evaluate(() => document.querySelector('.notice')?.textContent?.trim() ?? null);
-    console.log('notice after the late answer:', lateNotice);
+    const lateNotice = await editor.evaluate(() => document.querySelector('.notice')?.textContent?.trim() ?? null);
     if (lateNotice !== null) throw new Error(`The editor took its own save for a change made elsewhere: "${lateNotice}"`);
+
+    step('an item cannot be dropped on a taken tile');
+    await dragTiles(editor, target, dbTile);
+    await pause(900);
+    state = await project(scratch.id);
+    const afterRefusal = view(state).items.find((item) => item.id === apiId)!.tile;
+    if (afterRefusal.x === dbTile.x && afterRefusal.y === dbTile.y) throw new Error('Two items now share a tile');
+
+    step('a region is drawn, titled, undone and redone');
+    await tool(editor, 'Region');
+    const corner = { x: dbTile.x - 1, y: dbTile.y - 1 };
+    const opposite = { x: dbTile.x + 1, y: dbTile.y + 2 };
+    await dragTiles(editor, corner, opposite);
+    await fill(editor, 'Title', 'Data');
+    state = await saved(
+      scratch.id,
+      'a titled region',
+      (now) => view(now).rectangles?.length === 1 && view(now).textBoxes?.some((text) => text.content === 'Data') === true
+    );
+    await editor.screenshot({ path: `${SHOTS}/editor-tools.png` });
+
+    await tool(editor, 'Undo');
+    await saved(scratch.id, 'the undo of the title', (now) => (view(now).textBoxes ?? []).length === 0);
+    await tool(editor, 'Undo');
+    await saved(scratch.id, 'the undo of the region', (now) => (view(now).rectangles ?? []).length === 0);
+    await tool(editor, 'Redo');
+    await tool(editor, 'Redo');
+    await saved(scratch.id, 'the redo', (now) => view(now).textBoxes?.some((text) => text.content === 'Data') === true);
+
+    step('text is placed and edited; the Delete key removes the selection');
+    await tool(editor, 'Text');
+    await clickTile(editor, { x: dbTile.x + 4, y: dbTile.y + 4 });
+    await fill(editor, 'Text', 'Draft');
+    state = await saved(scratch.id, 'a text box', (now) => view(now).textBoxes?.some((text) => text.content === 'Draft') === true);
+    // The field has been left, so the key goes to the canvas and removes the selected text.
+    await editor.keyboard.press('Delete');
+    await saved(scratch.id, 'the deletion', (now) => !view(now).textBoxes?.some((text) => text.content === 'Draft'));
   } finally {
-    await dragPage.close();
-    await fetch(`${API}/api/projects/${dragProject.id}`, { method: 'DELETE' });
+    await editor.close();
+    await send(`/api/projects/${scratch.id}`, 'DELETE');
   }
 
   step('a second view shares the model but keeps its own layout');
   const viewTabs = (): Promise<string[]> =>
     page.$$eval('nav.tabs .tab', (nodes) => nodes.map((node) => node.textContent?.trim() ?? ''));
-  const viewNames = async (): Promise<string[]> => {
-    const project = (await getJson(`/api/projects/${PROJECT}`)) as unknown as {
-      model: { views: Array<{ name: string; items: unknown[] }> };
-    };
-    return project.model.views.map((view) => view.name);
-  };
+  const viewNames = async (): Promise<string[]> => (await project(PROJECT)).model.views.map((view) => view.name);
   const tabsBefore = await viewTabs();
 
-  // Leave the text box the previous step created selected and the editor tears down when the view
-  // changes, so dismiss it first; this is the regression the view key in Diagram.tsx guards too.
-  await page.keyboard.press('Escape');
-  await pause(1000);
-
-  // "+" adds an empty view over the same project items.
   await page.click('[title="Add a view"]');
   await answerDialog(page, 'Added by the browser check');
-  await pause(3000);
-  const viewsAfterAdd = await viewNames();
-  const tabsAfterAdd = await viewTabs();
-  console.log('views after add:', JSON.stringify(viewsAfterAdd), '| tabs:', JSON.stringify(tabsAfterAdd));
-  if (viewsAfterAdd.length !== tabsBefore.length + 1) {
-    throw new Error(`Adding a view did not add exactly one: ${JSON.stringify(viewsAfterAdd)}`);
-  }
-  const addedView = viewsAfterAdd.find((name) => !tabsBefore.includes(name));
-  if (!addedView) throw new Error('The new view did not appear in the editor tabs');
+  const afterAdd = await saved(PROJECT, 'the added view', (now) => now.model.views.length === tabsBefore.length + 1);
+  console.log('views after add:', JSON.stringify(afterAdd.model.views.map((view) => view.name)), '| tabs:', JSON.stringify(await viewTabs()));
+  if (!(await viewTabs()).includes('Added by the browser check')) throw new Error('The new view did not appear in the tabs');
+  await page.waitForSelector('.stage-empty', { timeout: 5000 });
 
   // Duplicate the populated view: the copy must carry its items.
-  const tabNodes = await page.$$('nav.tabs .tab');
-  await tabNodes[0].click();
-  await pause(1200);
-  const itemsInFirstView = (await page.$$eval('.canvas img', (nodes) => nodes.length)) as number;
+  await (await page.$$('nav.tabs .tab'))[0].click();
+  await page.waitForSelector('.canvas [data-item]', { timeout: 5000 });
+  const itemsInFirstView = await page.$$eval('.canvas [data-item]', (nodes) => nodes.length);
   await viewAction(page, 'Duplicate view');
-  await pause(3000);
-  const viewsAfterDuplicate = await viewNames();
-  console.log('views after duplicate:', JSON.stringify(viewsAfterDuplicate), '| first view icons:', itemsInFirstView);
-  if (viewsAfterDuplicate.length !== viewsAfterAdd.length + 1) {
-    throw new Error('Duplicating a view did not add a copy');
-  }
-  const copiedIcons = await page.$$eval('.canvas img', (nodes) => nodes.length);
-  if (copiedIcons !== itemsInFirstView) {
-    throw new Error(`The duplicated view has ${copiedIcons} icons, the original ${itemsInFirstView}`);
-  }
+  await saved(PROJECT, 'the duplicated view', (now) => now.model.views.length === tabsBefore.length + 2);
+  await pause(400);
+  const copiedItems = await page.$$eval('.canvas [data-item]', (nodes) => nodes.length);
+  console.log('views after duplicate:', JSON.stringify(await viewNames()), '| items', itemsInFirstView, '->', copiedItems);
+  if (copiedItems !== itemsInFirstView) throw new Error(`The duplicated view has ${copiedItems} items, the original ${itemsInFirstView}`);
 
   // Delete the copy, leaving the model as it was.
-  const revisionBeforeDelete = (await getJson(`/api/projects/${PROJECT}`)).revision as number;
   await viewAction(page, 'Delete view');
   await answerDialog(page);
-  await pause(3000);
-  const viewsAfterDelete = await viewNames();
-  const revisionAfterDelete = (await getJson(`/api/projects/${PROJECT}`)).revision as number;
-  console.log(
-    'views after delete:',
-    JSON.stringify(viewsAfterDelete),
-    '| revision',
-    revisionBeforeDelete,
-    '->',
-    revisionAfterDelete
-  );
-  if (viewsAfterDelete.length !== viewsAfterDuplicate.length - 1) {
-    throw new Error('Deleting a view did not remove it');
-  }
-  if (revisionAfterDelete <= revisionBeforeDelete) throw new Error('The view change was not saved');
-  await page.screenshot({ path: '/tmp/rea-views.png' });
+  await saved(PROJECT, 'the deleted view', (now) => now.model.views.length === tabsBefore.length + 1);
+  await page.screenshot({ path: `${SHOTS}/views.png` });
 
   step('share link opens a live, read-only copy');
-  const created = (await (
-    await fetch(`${API}/api/projects/${PROJECT}/shares`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({})
-    })
-  ).json()) as { token: string };
-  const token = created.token;
-  const shared = await browser.newPage();
-  watch(shared);
-  await shared.setViewport({ width: 1440, height: 900 });
-  await shared.goto(`${WEB}/s/${token}`, { waitUntil: 'networkidle2' });
-  await shared.waitForSelector('.canvas svg', { timeout: 30000 });
-  await pause(2000);
-  console.log(
-    'shared page:',
-    await shared.evaluate(() => ({
+  const { token } = await send<{ token: string }>(`/api/projects/${PROJECT}/shares`, 'POST', {});
+  const shared = await open(`${WEB}/s/${token}`);
+  await shared.waitForSelector('.canvas [data-item]', { timeout: 30000 });
+  const sharedPage = await shared.evaluate(() => {
+    const icons = [...document.querySelectorAll<SVGImageElement>('.canvas [data-item] image')];
+    return {
       status: document.querySelector('.status')?.textContent?.trim(),
-      svgs: document.querySelectorAll('.canvas svg').length,
-      imgs: document.querySelectorAll('.canvas img').length,
-      brokenImgs: [...document.querySelectorAll('.canvas img')].filter(
-        (img) => !(img as HTMLImageElement).complete || (img as HTMLImageElement).naturalWidth === 0
-      ).length,
-      editable: Boolean(document.querySelector('[title="Add a view"]')),
-      text: document.body.innerText.slice(0, 100)
-    }))
-  );
-  // A share page is the surface an outside client sees, so a missing icon or a broken image is a
-  // failure, not a cosmetic detail. Counting SVGs alone would not notice either.
-  const sharedIcons = await shared.$$eval('.canvas img', (nodes) => nodes.length);
-  if (sharedIcons === 0) throw new Error('The share page rendered no icons.');
-  const brokenShared = await shared.$$eval(
-    '.canvas img',
-    (nodes) => nodes.filter((img) => !(img as HTMLImageElement).complete || (img as HTMLImageElement).naturalWidth === 0).length
-  );
-  if (brokenShared > 0) throw new Error(`${brokenShared} share-page icons failed to load.`);
-  await shared.screenshot({ path: '/tmp/rea-shared.png' });
+      items: document.querySelectorAll('.canvas [data-item]').length,
+      icons: icons.length,
+      // A share page is the surface an outside reader sees: an icon with no picture is a failure.
+      emptyIcons: icons.filter((icon) => !(icon.getAttribute('href') ?? '').startsWith('data:image/') || icon.getBBox().width === 0).length,
+      tools: Boolean(document.querySelector('.toolbar')),
+      viewControls: Boolean(document.querySelector('[title="Add a view"]'))
+    };
+  });
+  console.log('shared page:', sharedPage);
+  if (sharedPage.icons === 0 || sharedPage.emptyIcons > 0) throw new Error('The share page is missing icons');
+  if (sharedPage.tools || sharedPage.viewControls) throw new Error('The share page offers editing controls');
+  // Read-only still answers "what is this?": clicking an item shows its name and notes.
+  const firstItem = (await project(PROJECT)).model.views[0].items[0];
+  await clickTile(shared, firstItem.tile);
+  await shared.waitForSelector('.inspector h3', { timeout: 5000 });
+  console.log('read-only item card:', await shared.$eval('.inspector', (node) => node.textContent?.slice(0, 120)));
+  if (await shared.$('.inspector input, .inspector textarea, .inspector button')) throw new Error('The read-only card has controls');
+  const beforeShareDrag = await project(PROJECT);
+  await dragTiles(shared, firstItem.tile, { x: firstItem.tile.x + 2, y: firstItem.tile.y });
+  await pause(1200);
+  if ((await project(PROJECT)).revision !== beforeShareDrag.revision) throw new Error('A share page changed the project');
+  await shared.screenshot({ path: `${SHOTS}/shared.png` });
 
   step('a revoked share link stops resolving');
-  await fetch(`${API}/api/shares/${token}`, { method: 'DELETE' });
+  // The two 404s this causes on the share page are the point of the step, not page errors.
+  const expected = failures.length;
+  await send(`/api/shares/${token}`, 'DELETE');
   const status = (await fetch(`${API}/api/shared/${token}`)).status;
-  console.log('shared API status after revoke:', status);
   if (status !== 404) throw new Error(`Expected 404 for a revoked link, got ${status}`);
   await shared.reload({ waitUntil: 'networkidle2' });
-  console.log('revoked page notice:', (await shared.$eval('.empty', (node) => node.textContent)) ?? '');
+  console.log('revoked page notice:', await shared.$eval('.empty', (node) => node.textContent));
+  failures.splice(expected);
 
   step('connect-agent panel shows ready-to-paste configuration');
-  await clickByText(page, '.seg button', 'Agent');
+  await clickByText(page, '.bar .seg button', 'Agent');
   await page.waitForSelector('.panel pre', { timeout: 20000 });
-  console.log('config blocks:', await page.$$eval('.panel pre', (nodes) => nodes.map((node) => node.textContent)));
-  await page.screenshot({ path: '/tmp/rea-agent.png' });
+  console.log('config blocks:', await page.$$eval('.panel pre', (nodes) => nodes.length));
+  await page.screenshot({ path: `${SHOTS}/agent.png` });
+
+  if (failures.length > 0) throw new Error(`The pages reported errors: ${JSON.stringify(failures, null, 2)}`);
+  console.log('\nAll checks passed.');
 } finally {
-  console.log('\npage errors:', failures.length === 0 ? 'none' : failures);
   await browser.close();
 }
