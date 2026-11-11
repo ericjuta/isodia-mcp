@@ -1,5 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { connectorTiles, exists, regionBox, type Target, textTiles, whatIsAt } from '../../src/core/hit';
+import { connectorTiles, exists, regionBox, type Target, whatIsAt } from '../../src/core/hit';
+import { textTiles } from '../../src/core/path';
 import { applyOperations, DiagramError } from '../../src/core/model';
 import type { Operation } from '../../src/core/operations';
 import { HALF_H, HALF_W, PROJECTED_HEIGHT, PROJECTED_WIDTH, renderScene, type ScenePart, tileAt, tileCenter } from '../../src/core/render';

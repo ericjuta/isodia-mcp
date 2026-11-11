@@ -1,6 +1,6 @@
 import chroma from 'chroma-js';
 import { resolveIcon } from './icons';
-import { connectorPath } from './path';
+import { connectorPath, textTiles } from './path';
 import { estimateTextWidth, textBoxSpan, wrapText } from './text';
 import { FONT_FAMILY, INK, INK_SOFT, PALETTE, PAPER } from './theme';
 import type { Coords, Model, TextOrientation, View } from './types';
@@ -245,6 +245,7 @@ export function renderScene(model: Model, view: View): Scene {
   const connectorLabels: ScenePart[] = [];
   /** Tiles already carrying a connector label; two labels on one tile hide each other. */
   const labelTiles = new Set<string>();
+  const textTileSet = new Set((view.textBoxes ?? []).flatMap(textTiles).map((tile) => `${tile.x},${tile.y}`));
   for (const connector of view.connectors ?? []) {
     let path;
     try {
@@ -294,18 +295,24 @@ export function renderScene(model: Model, view: View): Scene {
             Math.max(Math.abs(item.tile.x - tile.x), Math.abs(item.tile.y - tile.y))
           )
         );
+      // A label spills past its tile, so one beside text covers words of it, often a region title.
+      const besideText = (tile: Coords): number =>
+        [-1, 0, 1].some((dx) => [-1, 0, 1].some((dy) => textTileSet.has(`${tile.x + dx},${tile.y + dy}`))) ? 1 : 0;
       let chosen = route[middle];
-      let best: { clearance: number; taken: number; distance: number } | undefined;
+      let best: { clearance: number; taken: number; besideText: number; distance: number } | undefined;
       route.forEach((tile, index) => {
         const candidate = {
           clearance: clearanceAt(tile),
           taken: labelTiles.has(`${tile.x},${tile.y}`) ? 1 : 0,
+          besideText: besideText(tile),
           distance: Math.abs(index - middle)
         };
         const better =
           best === undefined ||
           candidate.taken < best.taken ||
+          (candidate.taken === best.taken && candidate.besideText < best.besideText) ||
           (candidate.taken === best.taken &&
+            candidate.besideText === best.besideText &&
             (candidate.clearance > best.clearance ||
               (candidate.clearance === best.clearance && candidate.distance < best.distance)));
         if (better) {

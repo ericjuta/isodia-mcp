@@ -1,6 +1,5 @@
-import { connectorPath } from './path';
-import { textBoxSpan } from './text';
-import type { Connector, Coords, Rectangle, TextBox, View } from './types';
+import { connectorPath, textTiles } from './path';
+import type { Connector, Coords, Rectangle, View } from './types';
 
 /**
  * What stands on a tile. The editor works in tiles, not pixels: a press is resolved to a tile
@@ -15,8 +14,6 @@ export interface Target {
   id: string;
 }
 
-const DEFAULT_TEXT_SIZE = 0.6;
-
 /** A region's extent with its corners in order, whichever way it was drawn. */
 export function regionBox(region: Rectangle): { lowX: number; highX: number; lowY: number; highY: number } {
   return {
@@ -25,14 +22,6 @@ export function regionBox(region: Rectangle): { lowX: number; highX: number; low
     lowY: Math.min(region.from.y, region.to.y),
     highY: Math.max(region.from.y, region.to.y)
   };
-}
-
-/** Tiles a text box lies on: from its tile along +x, or along -y when it runs the other way. */
-export function textTiles(text: TextBox): Coords[] {
-  const count = Math.max(1, Math.ceil(textBoxSpan(text.content, text.fontSize ?? DEFAULT_TEXT_SIZE) + 1));
-  return Array.from({ length: count }, (_, step) =>
-    text.orientation === 'Y' ? { x: text.tile.x, y: text.tile.y - step } : { x: text.tile.x + step, y: text.tile.y }
-  );
 }
 
 /** Tiles a connector runs through, in order; empty when its anchors no longer resolve. */

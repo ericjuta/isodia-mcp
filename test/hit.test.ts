@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { whatIsAt } from '../src/core/hit';
+import { connectorTiles, whatIsAt } from '../src/core/hit';
 import { applyOperations, emptyModel } from '../src/core/model';
 import { tileAt, tileCenter } from '../src/core/render';
 
@@ -48,4 +48,26 @@ test('a screen position maps back to the tile it was drawn from, anywhere inside
   }
   // Just past the right-hand vertex is the neighbour.
   expect(tileAt({ x: 80, y: 0 })).not.toEqual({ x: 0, y: 0 });
+});
+
+test('a connector steps around text and other items, and crosses them only when it must', () => {
+  const route = (walls: boolean) => {
+    const view = applyOperations(emptyModel('Route'), undefined, [
+      { op: 'add_item', name: 'A', tile: { x: 0, y: 0 } },
+      { op: 'add_item', name: 'B', tile: { x: 4, y: 0 } },
+      { op: 'add_item', name: 'Middle', tile: { x: 2, y: 0 } },
+      ...(walls
+        ? ([
+            { op: 'add_text', content: 'An exceedingly long wall of text that runs far past both ends of the line', tile: { x: -8, y: 1 } },
+            { op: 'add_text', content: 'An exceedingly long wall of text that runs far past both ends of the line', tile: { x: -8, y: -1 } }
+          ] as const)
+        : []),
+      { op: 'connect', from: 'A', to: 'B' }
+    ]).model.views[0];
+    return connectorTiles(view.connectors![0], view).map((tile) => `${tile.x},${tile.y}`);
+  };
+  expect(route(false)).not.toContain('2,0');
+  // Walled in past every widened search box, the line goes through rather than vanishing.
+  expect(route(true)).toContain('2,0');
+  expect(route(true).at(-1)).toBe('4,0');
 });
