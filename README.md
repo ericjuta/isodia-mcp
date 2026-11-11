@@ -3,11 +3,11 @@
 Isometric architecture diagrams that agents and people draw together: an MCP server, a browser
 canvas, revision history and share links, over one model.
 
-![An agent builds a diagram region by region in an open browser canvas; a person drags an item and searches the icons; the agent adds a connector, a second view and a share link; the history lists every step; the shared page shows the result read-only](docs/sample/demo.gif)
+![An agent builds a diagram region by region in an open browser canvas; a person zooms in, drags an item and searches the icons; the agent adds a connector, a second view and a share link; the history lists every step; the shared page shows the result read-only](docs/sample/demo.gif)
 
 *Unedited apart from the caption and pointer. The agent is a real MCP client calling
 `build_diagram`, `edit_diagram`, `manage_views` and `share_project` while the canvas is open; the
-person drags an item, searches the icons and switches view. Every step lands in the history, and
+person zooms in, drags an item, searches the icons and switches view. Every step lands in the history, and
 the last scene is the read-only shared page. Recorded by
 [`scripts/record-demo.ts`](scripts/record-demo.ts).*
 

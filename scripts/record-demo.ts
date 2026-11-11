@@ -149,6 +149,39 @@ try {
     const at = tileCenter(tile);
     return { x: stage.left + stage.panX + at.x * stage.zoom, y: stage.top + stage.panY + at.y * stage.zoom };
   };
+  /** What the person does to read the labels: Ctrl-wheel in on a group of tiles, then pan them to the middle. */
+  const frame = async (tiles: Coords[], most: number): Promise<void> => {
+    await fit();
+    await pause(400);
+    const points = await Promise.all(tiles.map(onScreen));
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const middle = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+    const stage = await page.$eval('[data-testid="stage"]', (node) => {
+      const box = node.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2, width: box.width, height: box.height, zoom: Number((node as SVGSVGElement).dataset.zoom) };
+    });
+    const room = Math.min((stage.width * 0.55) / Math.max(Math.max(...xs) - Math.min(...xs), 1), (stage.height * 0.4) / Math.max(Math.max(...ys) - Math.min(...ys), 1));
+    const wanted = Math.min(most, stage.zoom * Math.max(room, 1));
+    await page.mouse.move(middle.x, middle.y, { steps: 14 });
+    await page.keyboard.down('Control');
+    // Few, large steps: every frame of camera motion repaints the whole picture, which is what makes a GIF heavy.
+    for (let step = 0; step < 20; step++) {
+      const zoom = await page.$eval('[data-testid="stage"]', (node) => Number((node as SVGSVGElement).dataset.zoom));
+      if (zoom >= wanted) break;
+      await page.mouse.wheel({ deltaY: -Math.min(300, Math.log(wanted / zoom) / 0.0022) });
+      await pause(160);
+    }
+    await page.keyboard.up('Control');
+    await page.mouse.wheel({ deltaX: middle.x - stage.x, deltaY: middle.y - stage.y });
+    await pause(500);
+  };
+  /** The person clears the "changed elsewhere" notice once they have seen it. */
+  const dismiss = async (): Promise<void> => {
+    if ((await page.$('.notice .btn')) === null) return;
+    await press('.notice .btn', 'Dismiss');
+    await pause(300);
+  };
   /** Wait for the canvas to show a revision the server already holds. */
   const shown = async (items: number): Promise<void> => {
     await page.waitForFunction((count) => document.querySelectorAll('.stage-svg image').length >= count, { timeout: 15000 }, items);
@@ -188,6 +221,11 @@ try {
   ].find((tile) => !taken.has(`${tile.x},${tile.y}`));
   if (target === undefined) throw new Error('No free tile next to the item to drag');
 
+  await caption('Person', 'dismisses the notice and zooms in');
+  await dismiss();
+  await frame([item.tile, target], 0.5);
+  await pause(900);
+
   await caption('Person', 'drags an item; it saves itself');
   const start = await onScreen(item.tile);
   const end = await onScreen(target);
@@ -215,10 +253,18 @@ try {
   await page.keyboard.press('Escape');
   await pause(400);
 
+  const tileOf = (id: string): Coords => {
+    const found = view.items.find((candidate) => candidate.id === id);
+    if (found === undefined) throw new Error(`No ${id} in the overview`);
+    return found.tile;
+  };
+  await frame([tileOf('gateway'), tileOf('orders')], 0.5);
   await caption('Agent', 'edit_diagram · connects Payment provider to API gateway');
   await call('edit_diagram', { project: PROJECT, operations: [{ op: 'connect', from: 'psp', to: 'gateway', label: 'webhook' }] });
   // The canvas asks for changes every two seconds.
-  await pause(4600);
+  await pause(4000);
+  await dismiss();
+  await pause(600);
 
   await caption('Agent', 'manage_views · a second view of the same systems: the checkout path');
   await call('manage_views', { project: PROJECT, action: 'create', name: 'Checkout path' });
@@ -237,8 +283,14 @@ try {
   await caption('Person', 'opens the new view');
   await press('.tabs .tab', 'Checkout path');
   await pause(700);
+  await dismiss();
   await fit();
-  await pause(2600);
+  await pause(1400);
+  const checkout = (await call<Model>('export_project', { project: PROJECT })).views.find((candidate) => candidate.name === 'Checkout path');
+  if (checkout === undefined) throw new Error('No Checkout path view');
+  await caption('Person', 'zooms in to read it');
+  await frame(checkout.items.filter((candidate) => ['gateway', 'orders', 'psp'].includes(candidate.id)).map((candidate) => candidate.tile), 0.55);
+  await pause(2200);
 
   await caption('', 'Every step is a revision you can restore');
   await press('.bar .seg button', 'History');
