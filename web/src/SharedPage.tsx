@@ -33,6 +33,8 @@ export function SharedPage({ token }: { token: string }) {
   );
 
   useEffect(() => {
+    // A link that has stopped resolving stays that way; asking again every few seconds is noise.
+    if (failed) return;
     void load(true);
     const poll = window.setInterval(async () => {
       if (document.hidden) return;
@@ -44,7 +46,7 @@ export function SharedPage({ token }: { token: string }) {
       }
     }, POLL_INTERVAL_MS);
     return () => window.clearInterval(poll);
-  }, [token, load]);
+  }, [token, load, failed]);
 
   if (failed) {
     return (

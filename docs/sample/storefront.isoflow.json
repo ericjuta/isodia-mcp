@@ -1,0 +1,834 @@
+{
+  "version": "",
+  "title": "Storefront",
+  "description": "A made-up online store: clients, edge, services, background work, data and third parties.",
+  "items": [
+    {
+      "id": "storefront-web",
+      "name": "Web shop",
+      "description": "<p>Server-rendered storefront</p>",
+      "icon": "browser"
+    },
+    {
+      "id": "storefront-app",
+      "name": "Mobile app",
+      "description": "<p>iOS and Android</p>",
+      "icon": "mobiledevice"
+    },
+    {
+      "id": "storefront-assistant",
+      "name": "Shopping agent",
+      "description": "<p>Orders on a customer’s behalf</p>",
+      "icon": "agent"
+    },
+    {
+      "id": "storefront-cdn",
+      "name": "CDN",
+      "description": "<p>Pages, images, cached catalogue</p>",
+      "icon": "cdn"
+    },
+    {
+      "id": "storefront-waf",
+      "name": "Firewall",
+      "description": "<p>Rate limits and bot rules</p>",
+      "icon": "firewall"
+    },
+    {
+      "id": "storefront-gateway",
+      "name": "API gateway",
+      "description": "<p>Auth, routing, quotas</p>",
+      "icon": "gateway"
+    },
+    {
+      "id": "storefront-catalogue",
+      "name": "Catalogue",
+      "description": "<p>Products, prices, stock</p>",
+      "icon": "service"
+    },
+    {
+      "id": "storefront-cart",
+      "name": "Cart",
+      "description": "<p>Baskets and promotions</p>",
+      "icon": "service"
+    },
+    {
+      "id": "storefront-orders",
+      "name": "Orders",
+      "description": "<p>Checkout and order state</p>",
+      "icon": "service"
+    },
+    {
+      "id": "storefront-identity",
+      "name": "Identity",
+      "description": "<p>Sessions and API tokens</p>",
+      "icon": "key"
+    },
+    {
+      "id": "storefront-events",
+      "name": "Event stream",
+      "description": "<p>Order and stock events</p>",
+      "icon": "stream"
+    },
+    {
+      "id": "storefront-fulfil",
+      "name": "Fulfilment worker",
+      "description": "<p>Picks, packs, books a courier</p>",
+      "icon": "worker"
+    },
+    {
+      "id": "storefront-notify",
+      "name": "Notifier",
+      "description": "<p>Email and push</p>",
+      "icon": "bell"
+    },
+    {
+      "id": "storefront-nightly",
+      "name": "Nightly jobs",
+      "description": "<p>Reconcile payments and stock</p>",
+      "icon": "cronjob"
+    },
+    {
+      "id": "storefront-db",
+      "name": "Postgres",
+      "description": "<p>Orders, customers, stock</p>",
+      "icon": "database"
+    },
+    {
+      "id": "storefront-cache",
+      "name": "Cache",
+      "description": "<p>Sessions and hot products</p>",
+      "icon": "cache"
+    },
+    {
+      "id": "storefront-index",
+      "name": "Search index",
+      "description": "<p>Catalogue search</p>",
+      "icon": "search"
+    },
+    {
+      "id": "storefront-psp",
+      "name": "Payment provider",
+      "description": "<p>Cards and wallets</p>",
+      "icon": "paymentcard"
+    },
+    {
+      "id": "storefront-courier",
+      "name": "Courier",
+      "description": "<p>Labels and tracking</p>",
+      "icon": "truck"
+    },
+    {
+      "id": "storefront-mail",
+      "name": "Mail provider",
+      "description": "<p>Transactional email</p>",
+      "icon": "mail"
+    }
+  ],
+  "views": [
+    {
+      "id": "overview",
+      "name": "Storefront",
+      "items": [
+        {
+          "id": "storefront-web",
+          "tile": {
+            "x": -3,
+            "y": -3
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-app",
+          "tile": {
+            "x": 0,
+            "y": -3
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-assistant",
+          "tile": {
+            "x": 3,
+            "y": -3
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-cdn",
+          "tile": {
+            "x": -1,
+            "y": -11
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-waf",
+          "tile": {
+            "x": -1,
+            "y": -14
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-gateway",
+          "tile": {
+            "x": -1,
+            "y": -17
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-catalogue",
+          "tile": {
+            "x": -5,
+            "y": -25
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-cart",
+          "tile": {
+            "x": -2,
+            "y": -25
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-orders",
+          "tile": {
+            "x": 1,
+            "y": -25
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-identity",
+          "tile": {
+            "x": 4,
+            "y": -25
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-events",
+          "tile": {
+            "x": -2,
+            "y": -33
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-fulfil",
+          "tile": {
+            "x": -2,
+            "y": -36
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-notify",
+          "tile": {
+            "x": 1,
+            "y": -36
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-nightly",
+          "tile": {
+            "x": 1,
+            "y": -33
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-db",
+          "tile": {
+            "x": -8,
+            "y": -44
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-cache",
+          "tile": {
+            "x": -5,
+            "y": -44
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-index",
+          "tile": {
+            "x": -2,
+            "y": -44
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-psp",
+          "tile": {
+            "x": 2,
+            "y": -44
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-courier",
+          "tile": {
+            "x": 5,
+            "y": -44
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "storefront-mail",
+          "tile": {
+            "x": 8,
+            "y": -44
+          },
+          "labelHeight": 80
+        }
+      ],
+      "rectangles": [
+        {
+          "id": "clients",
+          "color": "color7",
+          "from": {
+            "x": -4,
+            "y": -4
+          },
+          "to": {
+            "x": 4,
+            "y": 1
+          }
+        },
+        {
+          "id": "edge",
+          "color": "color1",
+          "from": {
+            "x": -2,
+            "y": -18
+          },
+          "to": {
+            "x": 1,
+            "y": -7
+          }
+        },
+        {
+          "id": "services",
+          "color": "color6",
+          "from": {
+            "x": -6,
+            "y": -26
+          },
+          "to": {
+            "x": 5,
+            "y": -21
+          }
+        },
+        {
+          "id": "async",
+          "color": "color2",
+          "from": {
+            "x": -3,
+            "y": -37
+          },
+          "to": {
+            "x": 3,
+            "y": -29
+          }
+        },
+        {
+          "id": "data",
+          "color": "color3",
+          "from": {
+            "x": -9,
+            "y": -45
+          },
+          "to": {
+            "x": -1,
+            "y": -40
+          }
+        },
+        {
+          "id": "outside",
+          "color": "color4",
+          "from": {
+            "x": 1,
+            "y": -45
+          },
+          "to": {
+            "x": 9,
+            "y": -40
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "storefront-web-to-storefront-cdn",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-web-to-storefront-cdn:0",
+              "ref": {
+                "item": "storefront-web"
+              }
+            },
+            {
+              "id": "storefront-web-to-storefront-cdn:1",
+              "ref": {
+                "item": "storefront-cdn"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-app-to-storefront-waf",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-app-to-storefront-waf:0",
+              "ref": {
+                "item": "storefront-app"
+              }
+            },
+            {
+              "id": "storefront-app-to-storefront-waf:1",
+              "ref": {
+                "item": "storefront-waf"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-assistant-to-storefront-waf",
+          "description": "scoped token",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-assistant-to-storefront-waf:0",
+              "ref": {
+                "item": "storefront-assistant"
+              }
+            },
+            {
+              "id": "storefront-assistant-to-storefront-waf:1",
+              "ref": {
+                "item": "storefront-waf"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-cdn-to-storefront-waf",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-cdn-to-storefront-waf:0",
+              "ref": {
+                "item": "storefront-cdn"
+              }
+            },
+            {
+              "id": "storefront-cdn-to-storefront-waf:1",
+              "ref": {
+                "item": "storefront-waf"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-waf-to-storefront-gateway",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-waf-to-storefront-gateway:0",
+              "ref": {
+                "item": "storefront-waf"
+              }
+            },
+            {
+              "id": "storefront-waf-to-storefront-gateway:1",
+              "ref": {
+                "item": "storefront-gateway"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-gateway-to-storefront-identity",
+          "description": "verify",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-gateway-to-storefront-identity:0",
+              "ref": {
+                "item": "storefront-gateway"
+              }
+            },
+            {
+              "id": "storefront-gateway-to-storefront-identity:1",
+              "ref": {
+                "item": "storefront-identity"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-gateway-to-storefront-catalogue",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-gateway-to-storefront-catalogue:0",
+              "ref": {
+                "item": "storefront-gateway"
+              }
+            },
+            {
+              "id": "storefront-gateway-to-storefront-catalogue:1",
+              "ref": {
+                "item": "storefront-catalogue"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-gateway-to-storefront-cart",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-gateway-to-storefront-cart:0",
+              "ref": {
+                "item": "storefront-gateway"
+              }
+            },
+            {
+              "id": "storefront-gateway-to-storefront-cart:1",
+              "ref": {
+                "item": "storefront-cart"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-gateway-to-storefront-orders",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-gateway-to-storefront-orders:0",
+              "ref": {
+                "item": "storefront-gateway"
+              }
+            },
+            {
+              "id": "storefront-gateway-to-storefront-orders:1",
+              "ref": {
+                "item": "storefront-orders"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-catalogue-to-storefront-index",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-catalogue-to-storefront-index:0",
+              "ref": {
+                "item": "storefront-catalogue"
+              }
+            },
+            {
+              "id": "storefront-catalogue-to-storefront-index:1",
+              "ref": {
+                "item": "storefront-index"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-catalogue-to-storefront-cache",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-catalogue-to-storefront-cache:0",
+              "ref": {
+                "item": "storefront-catalogue"
+              }
+            },
+            {
+              "id": "storefront-catalogue-to-storefront-cache:1",
+              "ref": {
+                "item": "storefront-cache"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-cart-to-storefront-cache",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-cart-to-storefront-cache:0",
+              "ref": {
+                "item": "storefront-cart"
+              }
+            },
+            {
+              "id": "storefront-cart-to-storefront-cache:1",
+              "ref": {
+                "item": "storefront-cache"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-orders-to-storefront-db",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-orders-to-storefront-db:0",
+              "ref": {
+                "item": "storefront-orders"
+              }
+            },
+            {
+              "id": "storefront-orders-to-storefront-db:1",
+              "ref": {
+                "item": "storefront-db"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-orders-to-storefront-psp",
+          "description": "charge",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-orders-to-storefront-psp:0",
+              "ref": {
+                "item": "storefront-orders"
+              }
+            },
+            {
+              "id": "storefront-orders-to-storefront-psp:1",
+              "ref": {
+                "item": "storefront-psp"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-orders-to-storefront-events",
+          "description": "order placed",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-orders-to-storefront-events:0",
+              "ref": {
+                "item": "storefront-orders"
+              }
+            },
+            {
+              "id": "storefront-orders-to-storefront-events:1",
+              "ref": {
+                "item": "storefront-events"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-events-to-storefront-fulfil",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-events-to-storefront-fulfil:0",
+              "ref": {
+                "item": "storefront-events"
+              }
+            },
+            {
+              "id": "storefront-events-to-storefront-fulfil:1",
+              "ref": {
+                "item": "storefront-fulfil"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-events-to-storefront-notify",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-events-to-storefront-notify:0",
+              "ref": {
+                "item": "storefront-events"
+              }
+            },
+            {
+              "id": "storefront-events-to-storefront-notify:1",
+              "ref": {
+                "item": "storefront-notify"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-fulfil-to-storefront-courier",
+          "description": "book",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-fulfil-to-storefront-courier:0",
+              "ref": {
+                "item": "storefront-fulfil"
+              }
+            },
+            {
+              "id": "storefront-fulfil-to-storefront-courier:1",
+              "ref": {
+                "item": "storefront-courier"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-notify-to-storefront-mail",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-notify-to-storefront-mail:0",
+              "ref": {
+                "item": "storefront-notify"
+              }
+            },
+            {
+              "id": "storefront-notify-to-storefront-mail:1",
+              "ref": {
+                "item": "storefront-mail"
+              }
+            }
+          ]
+        },
+        {
+          "id": "storefront-nightly-to-storefront-db",
+          "description": "reconcile",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "storefront-nightly-to-storefront-db:0",
+              "ref": {
+                "item": "storefront-nightly"
+              }
+            },
+            {
+              "id": "storefront-nightly-to-storefront-db:1",
+              "ref": {
+                "item": "storefront-db"
+              }
+            }
+          ]
+        }
+      ],
+      "textBoxes": [
+        {
+          "id": "clients-label",
+          "tile": {
+            "x": -3,
+            "y": 0
+          },
+          "content": "Clients",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "edge-label",
+          "tile": {
+            "x": -1,
+            "y": -8
+          },
+          "content": "Edge",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "services-label",
+          "tile": {
+            "x": -5,
+            "y": -22
+          },
+          "content": "Services",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "async-label",
+          "tile": {
+            "x": -2,
+            "y": -30
+          },
+          "content": "Background work",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "data-label",
+          "tile": {
+            "x": -8,
+            "y": -41
+          },
+          "content": "Data",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "outside-label",
+          "tile": {
+            "x": 2,
+            "y": -41
+          },
+          "content": "Third parties",
+          "fontSize": 0.6,
+          "orientation": "X"
+        }
+      ]
+    }
+  ],
+  "icons": [],
+  "colors": [
+    {
+      "id": "color1",
+      "value": "#d1d9ec"
+    },
+    {
+      "id": "color2",
+      "value": "#dcd4ed"
+    },
+    {
+      "id": "color3",
+      "value": "#f2e7c4"
+    },
+    {
+      "id": "color4",
+      "value": "#f1d1ca"
+    },
+    {
+      "id": "color5",
+      "value": "#f5ddc5"
+    },
+    {
+      "id": "color6",
+      "value": "#d0e4ca"
+    },
+    {
+      "id": "color7",
+      "value": "#cde5df"
+    },
+    {
+      "id": "slate",
+      "value": "#80848c"
+    }
+  ]
+}

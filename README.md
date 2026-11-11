@@ -3,6 +3,17 @@
 Isometric architecture diagrams that agents and people draw together: an MCP server, a browser
 canvas, revision history and share links, over one model.
 
+![An agent builds a diagram region by region in an open browser canvas, a person drags an item, the agent adds a connector, and the history lists every step](docs/sample/demo.gif)
+
+*Unedited apart from the caption and pointer: an agent builds over the API while the canvas is
+open, a person drags an item, the agent connects two more, and every step lands in the history.
+Recorded by [`scripts/record-demo.ts`](scripts/record-demo.ts).*
+
+The same diagram as the renderer exports it, from one `build_diagram` call
+([`examples/storefront.ts`](examples/storefront.ts)); the layout, routing and artwork are isodia's:
+
+![A made-up online store drawn by isodia: 20 systems in six regions](docs/sample/storefront.png)
+
 Everything that draws or changes a diagram is this project's own: the model rules, the layout
 engine, the renderer, the canvas and the icon set. Diagrams are stored in the open
 [Isoflow](https://github.com/markmanx/isoflow) model format, so files move between isodia and
