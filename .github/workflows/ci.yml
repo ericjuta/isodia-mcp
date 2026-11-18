@@ -25,3 +25,7 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun run build
+      - name: Prove the article embed in Chromium
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: bun scripts/walkthrough-browser-check.ts

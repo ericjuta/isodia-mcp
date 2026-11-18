@@ -26,4 +26,4 @@ Let readers follow the argument in an article and inspect the infrastructure wit
 
 ## Evidence and outcomes
 
-Reader implementation typechecks. Browser proof and merge are pending.
+Reader implementation typechecks. A scratch Vite and Chromium check passed the direct step URL, click on the actual icon and notes, Return to step focus, browser back/forward, keyboard pick, and a 345 px viewport without horizontal overflow. Production-shell cross-origin iframe proof and merge are pending.
