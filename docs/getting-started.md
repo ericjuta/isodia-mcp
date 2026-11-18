@@ -46,14 +46,22 @@ ISODIA_WALKTHROUGHS_DIR="$preview" bun start
 
 Keep `bun run dev:web` running. Open [the payment step](http://localhost:4401/w/checkout-architecture-v1?step=charge-once). Check that the payment step opens directly. Click another component or switch views to explore, then choose **Return to step**. This preview checks the reader, not iframe permissions. Use the [publishing guide](walkthroughs.md) to test an embed through the server that supplies the frame policy.
 
+## First-run checklist
+
+- [ ] The project list opens at `http://localhost:4401`. If it does not, check that both terminals are still running.
+- [ ] The imported checkout project shows multiple views. Clicking a component shows its notes.
+- [ ] The walkthrough link opens the payment step directly. **Return to step** restores the step after you explore.
+
+You do not need to complete the walkthrough preview to draw your own diagram. Follow the [editor guide](using-isodia.md#draw-your-first-flow) to start with a blank project.
+
 ## What to do next
 
 | Goal | Where to start |
 | --- | --- |
 | Let an agent draw or edit | [Connect an agent](../README.md#connect-an-agent). The editor's **Agent** panel provides connection settings. |
-| Let someone follow the current project | Use a read-only share link. Anyone with the link can read the shared project, and later edits appear there. |
+| Let someone follow the current project | [Check and send a live share](using-isodia.md#check-a-live-share-before-sending-it). Anyone with the link can read the shared project, and later edits appear there. |
 | Link to or embed a diagram in an article | [Publish a walkthrough](walkthroughs.md). It uses a reviewed snapshot, not the live project. Everything in that snapshot is public. Only the article's origin can frame the embed. |
-| Run Isodia on a server | [Deployment and Docker](../README.md#docker). Do not expose the editor or MCP without authentication. |
+| Run Isodia on a server | [Operator checklist](operating-isodia.md). Do not expose the editor or MCP without authentication. |
 | Change the code | Read [DESIGN.md](../DESIGN.md) before changing the editor. Start in [`src/core`](../src/core) for the model and renderer, [`src/server`](../src/server) for storage and HTTP/MCP, or [`web/src`](../web/src) for the browser UI. See the [CI workflow](../.github/workflows/ci.yml) for the checks. |
 
 ## If something does not open

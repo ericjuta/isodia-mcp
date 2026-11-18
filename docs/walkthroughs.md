@@ -20,6 +20,18 @@ does not grant access to the project.
 | step | One stop in the walkthrough: title, prose, a view and an optional focused component |
 | publication | A prepared, versioned snapshot file, named in every link to it |
 
+## Publication checklist
+
+New to Isodia? Run the [local sample](getting-started.md#3-preview-the-checkout-walkthrough) before preparing your own. Use the checklist below for each version you publish.
+
+- [ ] Choose a public-safe model. Export the model JSON and write the manifest. Give the publication a new versioned name.
+- [ ] Review the **prepared JSON**, not just the screenshots. Check every included view, component note, label, step, and custom icon. A step's focus does not hide other content.
+- [ ] Set `articleUrl` to the article's real HTTPS address. If the article is on a staging origin, use a separate preview publication.
+- [ ] Install the reviewed file in the publication directory. Open a full-page step link in a private browser window without the editor token.
+- [ ] If you embed it, check the iframe from the actual article page. Try navigating steps, exploring a component, and returning to the article. Test at a narrow width.
+- [ ] Add a descriptive iframe title and a normal full-page link. Make sure the article still explains the point without the iframe.
+- [ ] Keep the old version available while readers still need its links. To withdraw a version, remove its file and check that new requests return `404`.
+
 ## The sample
 
 [`docs/sample/walkthrough/`](sample/walkthrough/) holds a complete, made-up example:
