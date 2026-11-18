@@ -1,6 +1,6 @@
 # ExecPlan: publish a reviewed walkthrough snapshot
 
-Status: locally verified · Last updated: 2026-11-18 · Branch: `feat/published-walkthroughs` · [Map](walkthrough-wayfinder.md) · [Ticket #6](https://github.com/ericjuta/isodia-mcp/issues/6)
+Status: verified · Last updated: 2026-11-18 · Branch: `feat/published-walkthroughs` · [PR #9](https://github.com/ericjuta/isodia-mcp/pull/9) · [Map](walkthrough-wayfinder.md) · [Ticket #6](https://github.com/ericjuta/isodia-mcp/issues/6)
 
 ## Purpose
 
@@ -25,4 +25,4 @@ Make it possible to link a public article to an architecture diagram without con
 
 ## Evidence and outcomes
 
-`bun test test/walkthrough.test.ts` passed projection, step/reference validation, frozen icon, authentication, framing, malformed/file boundary and withdrawal cases. `bun run typecheck` passed. The server also refuses symlinks, non-regular files and snapshots over 5 MiB. See the [reader plan](walkthrough-reader.execplan.md) for article-to-reader acceptance.
+`bun test test/walkthrough.test.ts` passed projection, step/reference validation, frozen icon, authentication, framing, malformed/file boundary and withdrawal cases, plus the CLI filename and no-overwrite checks. GitHub CI passed typecheck, the full suite, the build and the reader smoke. The server also refuses symlinks, non-regular files and snapshots over 5 MiB. See the [reader plan](walkthrough-reader.execplan.md) for article-to-reader acceptance.

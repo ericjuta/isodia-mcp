@@ -1,6 +1,6 @@
 # ExecPlan: read and embed a guided walkthrough
 
-Status: implementing · Last updated: 2026-11-18 · Branch: `feat/published-walkthroughs` · [Map](walkthrough-wayfinder.md) · [Ticket #7](https://github.com/ericjuta/isodia-mcp/issues/7) · [Ticket #8](https://github.com/ericjuta/isodia-mcp/issues/8)
+Status: verified · Last updated: 2026-11-18 · Branch: `feat/published-walkthroughs` · [PR #9](https://github.com/ericjuta/isodia-mcp/pull/9) · [Map](walkthrough-wayfinder.md) · [Ticket #7](https://github.com/ericjuta/isodia-mcp/issues/7) · [Ticket #8](https://github.com/ericjuta/isodia-mcp/issues/8)
 
 ## Purpose
 
@@ -10,7 +10,7 @@ Let readers follow the argument in an article and inspect the infrastructure wit
 
 - [x] Trace the read-only canvas, item selection and inspector; share page currently has no step or history URL.
 - [x] Implement the reader, compact iframe, focus, accessible component controls and article backlink.
-- [ ] Supply the three-step sample, run focused and browser verification, and land.
+- [x] Supply the three-step sample and run focused and built-app browser verification. Landing status is tracked by PR #9.
 
 ## Plan of work
 
@@ -26,4 +26,6 @@ Let readers follow the argument in an article and inspect the infrastructure wit
 
 ## Evidence and outcomes
 
-Reader implementation typechecks. A scratch Vite and Chromium check passed the direct step URL, click on the actual icon and notes, Return to step focus, browser back/forward, keyboard pick, and a 345 px viewport without horizontal overflow. Production-shell cross-origin iframe proof and merge are pending.
+- A scratch Vite/Chromium check passed direct navigation, rendered-item click and notes, Return to step focus, Back/Forward, keyboard pick, and a 345 px viewport without horizontal overflow.
+- [GitHub CI](https://github.com/ericjuta/isodia-mcp/actions/runs/44404041090) ran the full suite and build, then `scripts/walkthrough-browser-check.ts` on the real checkout sample with three loopback origins. It proved the reader and deep links, target and focus restoration, separate article history, short-iframe zoom stability, allowed framing, and refused framing from a different origin. It did not publish an instance or an article.
+- Independent review of the initial implementation found no correctness or security blockers. The reader now keeps zoom when notes change in short embeds, focuses the step heading on navigation or return, and leaves the article's Back history alone. Browser checks cover those decisions. The public route validates each file read; if traffic warrants caching later, preserve the file-withdrawal behavior.

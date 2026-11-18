@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseWalkthrough, prepareWalkthrough, WALKTHROUGH_MAX_BYTES } from '../src/core/walkthrough';
@@ -101,6 +101,29 @@ test('publication routes are read-only, isolated from projects, frame-scoped and
     expect(withdrawn.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
   } finally {
     store.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('the preparation command refuses unsafe names and never overwrites a publication', () => {
+  const root = mkdtempSync(join(tmpdir(), 'isodia-walkthrough-cli-'));
+  try {
+    const modelPath = join(root, 'model.json');
+    const manifestPath = join(root, 'manifest.json');
+    const publicationPath = join(root, 'checkout-v1.json');
+    writeFileSync(modelPath, JSON.stringify(model));
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    const prepare = (name: string) => Bun.spawnSync([
+      process.execPath, join(import.meta.dir, '../scripts/prepare-walkthrough.ts'), modelPath, manifestPath, name
+    ]);
+    const invalid = prepare(join(root, 'Not a slug.json'));
+    expect(invalid.exitCode).toBe(1);
+    expect(invalid.stderr.toString()).toContain('lowercase publication slug');
+    expect(prepare(publicationPath).exitCode).toBe(0);
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest, title: 'An updated story' }));
+    expect(prepare(publicationPath).exitCode).toBe(1);
+    expect(JSON.parse(readFileSync(publicationPath, 'utf8')).title).toBe(manifest.title);
+  } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });

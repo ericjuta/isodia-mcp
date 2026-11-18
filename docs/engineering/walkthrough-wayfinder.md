@@ -1,6 +1,6 @@
 # Wayfinder: architecture walkthroughs for technical articles
 
-[GitHub map #5](https://github.com/ericjuta/isodia-mcp/issues/5) · Status: implementing
+[GitHub map #5](https://github.com/ericjuta/isodia-mcp/issues/5) · Status: verified · [Delivery PR #9](https://github.com/ericjuta/isodia-mcp/pull/9)
 
 ## Destination
 
@@ -19,3 +19,7 @@ A technical article can embed or link directly to a step in a read-only architec
 - Keep the editor and interchange schema unchanged. A **component** is a shared model item, a **connection** is a view connector, a **view** is a slice of a diagram, and a **step** is an ordered narrative stop with a view and optional component focus.
 - A **publication** is a versioned snapshot file. A blog is not a client of the live editor or a bearer share link. The operator reviews the whole generated artifact, publishes under a versioned name, and never modifies that file in place. Remove it to withdraw it; publish a new name to revise it.
 - The source article supplies the iframe origin; full-page and iframe entry points share the same step state. Do not build a CMS, custom fields, search across diagrams, or an authoring GUI for this slice.
+
+## Evidence and closeout
+
+The [Chromium CI run](https://github.com/ericjuta/isodia-mcp/actions/runs/44404041090) proved the built three-step checkout reader, including the allowed and refused article origins. The [author guide](../walkthroughs.md) is the entry point for preparing and mounting a sample or a reviewed publication. The PR and map issue record the merge state; no production deployment is in this map.
