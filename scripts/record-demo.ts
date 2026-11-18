@@ -1,20 +1,21 @@
 /**
- * Records the README demo. The agent is a real MCP client talking to `/mcp`: it builds the
- * storefront region by region while the canvas is open, adds a connector, cuts a second view and
- * makes a share link. The person drags an item, searches the icons, switches view and opens the
- * history. The last scene is the read-only shared page.
+ * Records the README demo with real MCP calls and browser interactions.
+ * Start the API and editor with a fresh scratch database and set ISODIA_WALKTHROUGHS_DIR
+ * on the API server to a fresh scratch directory. Use that same directory here:
  *
- *   bun run build && PORT=4410 ISODIA_DB=/tmp/demo.db bun src/server/index.ts &
- *   CHROME_PATH=/path/to/chrome URL=http://127.0.0.1:4410 OUT=/tmp/demo-frames bun scripts/record-demo.ts
+ *   CHROME_PATH=/path/to/chrome URL=http://localhost:4401 OUT=/tmp/demo-frames \
+ *     ISODIA_WALKTHROUGHS_DIR=/tmp/demo-publications bun scripts/record-demo.ts
  *
  * Writes numbered PNG frames and `frames.txt`, an ffmpeg concat list with each frame's real
  * duration. Turn them into the GIF with:
  *
- *   ffmpeg -f concat -safe 0 -i frames.txt -vf "fps=10,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=none" docs/sample/demo.gif
+ *   ffmpeg -f concat -i /tmp/demo-frames/frames.txt -vf "fps=8,scale=1000:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=64:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" docs/sample/demo.gif
  *
  * The caption and the pointer are drawn by this script; everything else is the product.
  */
-import { mkdir, rm } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -26,10 +27,11 @@ import type { Coords, Model } from '../src/core/types';
 const CHROME = process.env.CHROME_PATH;
 if (CHROME === undefined) throw new Error('Set CHROME_PATH to a Chrome or Chromium binary.');
 const URL_BASE = process.env.URL ?? 'http://127.0.0.1:4400';
-const OUT = process.env.OUT ?? '/tmp/isodia-demo';
-
-await rm(OUT, { recursive: true, force: true });
-await mkdir(OUT, { recursive: true });
+const OUT = process.env.OUT;
+const PUBLICATIONS = process.env.ISODIA_WALKTHROUGHS_DIR;
+if (!OUT || !PUBLICATIONS) throw new Error('Set OUT to a new directory and ISODIA_WALKTHROUGHS_DIR to a scratch publication directory.');
+await mkdir(OUT);
+await mkdir(PUBLICATIONS, { recursive: true });
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 const agent = new Client({ name: 'isodia-demo-agent', version: '0.0.0' });
@@ -92,11 +94,11 @@ try {
       label
     );
     if (at === null) throw new Error(`No "${label}" at ${selector}`);
-    await page.mouse.move(at.x, at.y, { steps: 14 });
+    await page.mouse.move(at.x, at.y, { steps: 5 });
     await pause(250);
     await page.mouse.click(at.x, at.y);
   };
-  const caption = (who: 'Agent' | 'Person' | '', text: string): Promise<void> =>
+  const caption = (who: 'Agent' | 'Person' | 'Reader' | 'Author' | '', text: string): Promise<void> =>
     page.evaluate(
       (actor, line) => {
         const node = document.getElementById('demo-caption');
@@ -133,6 +135,8 @@ try {
       await pause(40);
     }
   })();
+  // Surface capture errors at the join, not as an unhandled rejection mid-scene.
+  void recorder.catch(() => {});
 
   const fit = (): Promise<void> =>
     page.evaluate(() => {
@@ -163,7 +167,7 @@ try {
     });
     const room = Math.min((stage.width * 0.55) / Math.max(Math.max(...xs) - Math.min(...xs), 1), (stage.height * 0.4) / Math.max(Math.max(...ys) - Math.min(...ys), 1));
     const wanted = Math.min(most, stage.zoom * Math.max(room, 1));
-    await page.mouse.move(middle.x, middle.y, { steps: 14 });
+    await page.mouse.move(middle.x, middle.y, { steps: 5 });
     await page.keyboard.down('Control');
     // Few, large steps: every frame of camera motion repaints the whole picture, which is what makes a GIF heavy.
     for (let step = 0; step < 20; step++) {
@@ -286,7 +290,8 @@ try {
   await dismiss();
   await fit();
   await pause(1400);
-  const checkout = (await call<Model>('export_project', { project: PROJECT })).views.find((candidate) => candidate.name === 'Checkout path');
+  const finalModel = await call<Model>('export_project', { project: PROJECT });
+  const checkout = finalModel.views.find((candidate) => candidate.name === 'Checkout path');
   if (checkout === undefined) throw new Error('No Checkout path view');
   await caption('Person', 'zooms in to read it');
   await frame(checkout.items.filter((candidate) => ['gateway', 'orders', 'psp'].includes(candidate.id)).map((candidate) => candidate.tile), 0.55);
@@ -296,16 +301,78 @@ try {
   await press('.bar .seg button', 'History');
   await pause(3200);
 
-  await caption('Agent', 'share_project · a read-only link to hand out');
-  const link = await call<{ token: string }>('share_project', { project: PROJECT, action: 'create', view: 'Overview' });
-  await pause(1500);
-  navigating = true;
-  await pause(400);
-  await page.goto(`${URL_BASE}/s/${link.token}`, { waitUntil: 'networkidle2' });
-  await furnish(page);
-  await caption('', 'The shared page: live, read-only, no sign-in');
-  navigating = false;
-  await pause(3500);
+  await caption('Person', 'exports the checkout view as a PNG');
+  await press('.bar .seg button', 'Export');
+  await page.waitForFunction(() => document.body.innerText.includes('Download PNG of this view'));
+  await pause(1000);
+  const png = page.waitForResponse((response) => response.ok() && response.headers()['content-type']?.startsWith('image/png'), { timeout: 8000 });
+  await press('.panel-body button', 'Download PNG of this view');
+  assert.equal((await (await png).buffer()).subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  await pause(1800);
+
+  const open = async (path: string, who: 'Reader' | 'Author', text: string) => {
+    navigating = true;
+    await pause(450);
+    await page.goto(`${URL_BASE}${path}`, { waitUntil: 'networkidle2' });
+    await page.waitForSelector('[data-testid="stage"]');
+    await furnish(page);
+    await caption(who, text);
+    navigating = false;
+  };
+  const component = async (id: string) => {
+    const handle = await page.waitForSelector(`[data-item="${id}"]`);
+    assert.ok(handle);
+    const at = await handle.clickablePoint();
+    await page.mouse.move(at.x, at.y, { steps: 6 });
+    await page.mouse.click(at.x, at.y);
+    await handle.dispose();
+  };
+
+  await caption('Agent', 'share_project · creates a live, read-only link');
+  const link = await call<{ token: string }>('share_project', { project: PROJECT, action: 'create', view: checkout.id });
+  await pause(1800);
+  await open(`/s/${link.token}`, 'Reader', 'opens the live diagram without signing in');
+  await pause(1800);
+  await frame(checkout.items.filter(({ id }) => ['orders', 'psp'].includes(id)).map(({ tile }) => tile), 0.55);
+  await caption('Reader', 'clicks Orders to read its notes');
+  await component('orders');
+  await page.waitForFunction(() => document.body.innerText.includes('Checkout and order state'));
+  await pause(2800);
+
+  await caption('Author', 'publishes a versioned walkthrough from the same model');
+  await Bun.write(join(OUT, 'model.json'), JSON.stringify(finalModel));
+  await Bun.write(join(OUT, 'walkthrough.json'), JSON.stringify({
+    schemaVersion: 1,
+    title: 'How storefront checkout works',
+    articleUrl: 'https://example.com/articles/storefront-checkout',
+    views: [checkout.id],
+    steps: [
+      { id: 'enter-checkout', title: 'Enter checkout', body: 'The API gateway routes checkout requests to Orders.', view: checkout.id, component: 'gateway' },
+      { id: 'take-payment', title: 'Take payment', body: 'Orders asks the payment provider to charge the customer and records order state in Postgres.', view: checkout.id, component: 'orders' }
+    ]
+  }));
+  const publication = 'storefront-checkout-v1';
+  const prepare = Bun.spawn([process.execPath, join(import.meta.dir, 'prepare-walkthrough.ts'), join(OUT, 'model.json'),
+    join(OUT, 'walkthrough.json'), join(PUBLICATIONS, `${publication}.json`)], { stdout: 'inherit', stderr: 'inherit' });
+  assert.equal(await prepare.exited, 0);
+  await pause(1600);
+
+  await open(`/w/${publication}?step=take-payment`, 'Reader', 'opens a link directly to step 2');
+  await page.waitForSelector('[data-step="take-payment"][aria-current="step"]');
+  await pause(3000);
+  await caption('Reader', 'explores another component without leaving the step');
+  await component('psp');
+  const notes = '[data-testid="component-notes"]';
+  await page.waitForFunction((selector) => document.querySelector(selector)?.textContent?.includes('Cards and wallets'), {}, notes);
+  await pause(2500);
+  await caption('Reader', 'returns to the guided focus');
+  await press('[data-testid="return-to-step"]', 'Return to step');
+  await page.waitForFunction((selector) => document.querySelector(selector)?.textContent?.includes('Checkout and order state'), {}, notes);
+  await pause(2600);
+  await caption('Reader', 'switches steps to follow the request from the start');
+  await press('[data-step="enter-checkout"]', '1. Enter checkout');
+  await page.waitForSelector('[data-step="enter-checkout"][aria-current="step"]');
+  await pause(3000);
 
   recording = false;
   await recorder;
@@ -313,9 +380,9 @@ try {
   const lines = frames.flatMap((frame, index) => {
     const next = frames[index + 1];
     const seconds = next === undefined ? 1.5 : (next.at - frame.at) / 1000;
-    return [`file '${frame.file}'`, `duration ${seconds.toFixed(3)}`];
+    return [`file '${basename(frame.file)}'`, `duration ${seconds.toFixed(3)}`];
   });
-  lines.push(`file '${frames[frames.length - 1].file}'`);
+  lines.push(`file '${basename(frames[frames.length - 1].file)}'`);
   await Bun.write(`${OUT}/frames.txt`, `${lines.join('\n')}\n`);
   console.log(`${frames.length} frames over ${((frames[frames.length - 1].at - frames[0].at) / 1000).toFixed(1)} s in ${OUT}`);
 } finally {

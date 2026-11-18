@@ -14,13 +14,18 @@ a sample diagram, and preview a three-step article walkthrough.
 | Host Isodia for other people | [Operator checklist](docs/operating-isodia.md) |
 | Draw with an agent | [Connect an agent and draw a first diagram](#connect-an-agent) |
 
-![An agent builds a diagram region by region in an open browser canvas; a person zooms in, drags an item and searches the icons; the agent adds a connector, a second view and a share link; the history lists every step; the shared page shows the result read-only](docs/sample/demo.gif)
+### End-to-end demo
 
-*Unedited apart from the caption and pointer. The agent is a real MCP client calling
-`build_diagram`, `edit_diagram`, `manage_views` and `share_project` while the canvas is open; the
-person zooms in, drags an item, searches the icons and switches view. Every step lands in the history, and
-the last scene is the read-only shared page. Recorded by
-[`scripts/record-demo.ts`](scripts/record-demo.ts).*
+![Isodia demo: build a storefront diagram with MCP, edit it in the browser, export a PNG, read a live share, and follow a published walkthrough](docs/sample/demo.gif)
+
+1. An MCP client builds the storefront and creates a focused checkout view.
+2. In the editor, a person moves a component, searches for icons, opens revision history, and exports the checkout view as a PNG.
+3. A reader opens a live, read-only share and clicks **Orders** to read its notes.
+4. The author publishes a versioned snapshot. A reader opens a link to step 2, explores the payment provider, and returns to the guided focus.
+
+Recorded in the real app with [`scripts/record-demo.ts`](scripts/record-demo.ts). The captions and
+pointer are recording overlays. See the [editor and sharing guide](docs/using-isodia.md) and the
+[walkthrough publication guide](docs/walkthroughs.md) to try the same workflow.
 
 The same diagram as the renderer exports it, from one `build_diagram` call
 ([`examples/storefront.ts`](examples/storefront.ts)); the layout, routing and artwork are isodia's:
