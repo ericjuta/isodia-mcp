@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { htmlToText } from '../../src/core/text';
 import type { Walkthrough } from '../../src/core/walkthrough';
 import { Brand, Mark } from './ui';
@@ -14,6 +14,7 @@ function StepReader({ story, step }: { story: Walkthrough; step: Step }) {
   const [viewId, setViewId] = useState(step.view);
   const [component, setComponent] = useState<string | null>(step.component ?? null);
   const [reset, setReset] = useState(0);
+  const heading = useRef<HTMLHeadingElement>(null);
   const model = story.model;
   const view = model.views.find((candidate) => candidate.id === viewId)!;
   const items = useMemo(() => {
@@ -29,13 +30,14 @@ function StepReader({ story, step }: { story: Walkthrough; step: Step }) {
     <div className="walkthrough-workspace">
       <section className="walkthrough-rail" aria-label="Walkthrough step and details">
         <div className="walkthrough-section">
-          <h2>{step.title}</h2>
+          <h2 ref={heading} tabIndex={-1}>{step.title}</h2>
           <p className="walkthrough-prose" data-testid="step-body">{step.body}</p>
           {exploring && (
             <button type="button" className="btn" onClick={() => {
               setViewId(step.view);
               setComponent(step.component ?? null);
               setReset((value) => value + 1);
+              heading.current?.focus({ preventScroll: true });
             }}>Return to step</button>
           )}
         </div>

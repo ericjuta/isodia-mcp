@@ -17,7 +17,7 @@ const [, section, id, mode] = window.location.pathname.split('/');
 function page() {
   if (section === 'p' && id) return <ProjectPage projectId={decodeURIComponent(id)} />;
   if (section === 's' && id) return <SharedPage token={id} />;
-  if (section === 'w' && id) return <WalkthroughPage id={id} embed={mode === 'embed'} />;
+  if (section === 'w' && id) return <WalkthroughPage id={decodeURIComponent(id)} embed={mode === 'embed'} />;
   return <Dashboard />;
 }
 

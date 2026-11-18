@@ -1218,6 +1218,10 @@ span.title {
   min-height: 320px;
 }
 
+.walkthrough-canvas [data-item] {
+  cursor: pointer;
+}
+
 .walkthrough-rail {
   background: var(--surface);
   border-right: 1px solid var(--line);

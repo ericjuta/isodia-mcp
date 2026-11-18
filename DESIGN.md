@@ -264,7 +264,9 @@ drawing of the view, placed in the page, with editing on top.
   component notes and replaces the floating inspector. It offers the same component selection
   by keyboard as a click on the canvas. Exploring a view or component leaves the step link
   unchanged; Return to step restores its view and focus. In a narrow iframe the rail and canvas
-  stack instead of shrinking the diagram underneath controls.
+  stack instead of shrinking the diagram underneath controls. In the reader, a click on a
+  component’s artwork or label selects it, and a drag only pans. An unmodified
+  wheel scrolls the reader instead of trapping the article in the canvas.
 
 ## The picture
 

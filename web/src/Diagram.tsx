@@ -277,12 +277,13 @@ export default function Diagram({ shown, editable, onChange, readerSelection }: 
     });
   }, []);
 
-  // The wheel pans and, with Ctrl or Cmd (which is also what a trackpad pinch sends), zooms about
-  // the pointer. Registered by hand because the page must not scroll or zoom underneath.
+  // Ctrl/Cmd + wheel (also sent by a trackpad pinch) zooms about the pointer. Plain wheel
+  // pans in the editor and live share, but must be allowed to scroll a published reader.
   useEffect(() => {
     const element = svg.current;
     if (!element) return;
     const onWheel = (event: WheelEvent): void => {
+      if (compactFit && !event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       if (event.ctrlKey || event.metaKey) {
         const box = element.getBoundingClientRect();
@@ -293,7 +294,7 @@ export default function Diagram({ shown, editable, onChange, readerSelection }: 
     };
     element.addEventListener('wheel', onWheel, { passive: false });
     return () => element.removeEventListener('wheel', onWheel);
-  }, [zoomBy]);
+  }, [zoomBy, compactFit]);
 
   useEffect(() => {
     if (!editable) return;
@@ -348,7 +349,10 @@ export default function Diagram({ shown, editable, onChange, readerSelection }: 
     if (event.button === 1) return startPan(event, false);
 
     if (!editable) {
-      if (readerSelection) return startPan(event, false, target?.kind === 'item' ? target.id : null);
+      if (readerSelection) {
+        const drawnItem = event.target instanceof Element ? event.target.closest('[data-item]')?.getAttribute('data-item') : null;
+        return startPan(event, false, drawnItem ?? (target?.kind === 'item' ? target.id : null));
+      }
       setSelection(target?.kind === 'item' ? target : null);
       return startPan(event, false);
     }
