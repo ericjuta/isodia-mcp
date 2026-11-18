@@ -56,7 +56,7 @@ function checkSteps(steps: Walkthrough['steps'], model: Model): void {
 }
 
 /** Select a closed subset of the model, including the artwork and palette entries it uses. */
-function project(model: Model, views: Model['views']): Model {
+function project(model: Model, views: Model['views'], title: string): Model {
   const itemIds = new Set(views.flatMap((view) => view.items.map(({ id }) => id)));
   const items = model.items.filter(({ id }) => itemIds.has(id));
   const iconIds = new Set(items.map(({ icon }) => icon));
@@ -65,8 +65,7 @@ function project(model: Model, views: Model['views']): Model {
     ...(view.rectangles ?? []).map(({ color }) => color)
   ]));
   return {
-    version: model.version,
-    title: model.title,
+    title,
     items,
     views: views.map(({ lastUpdated: _lastUpdated, ...view }) => view),
     icons: model.icons.filter(({ id }) => iconIds.has(id)),
@@ -84,7 +83,7 @@ export function prepareWalkthrough(source: unknown, manifest: unknown): Walkthro
     if (!view) throw new WalkthroughError(`Unknown published view "${id}".`);
     return view;
   });
-  const snapshot = parseModel(withReferencedIcons(project(model, views)));
+  const snapshot = parseModel(withReferencedIcons(project(model, views, story.title)));
   checkSteps(story.steps, snapshot);
   return { ...story, model: snapshot };
 }
@@ -94,7 +93,7 @@ export function parseWalkthrough(input: unknown): Walkthrough {
   const { model: raw, ...story } = publicationSchema.parse(input);
   const model = parseModel(raw);
   if (model.views.length === 0) throw new WalkthroughError('A walkthrough needs at least one view.');
-  const projected = project(model, model.views);
+  const projected = project(model, model.views, story.title);
   if (JSON.stringify(projected) !== JSON.stringify(model)) {
     throw new WalkthroughError('The model contains data outside the publication projection. Run the preparation command.');
   }

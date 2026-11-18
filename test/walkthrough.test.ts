@@ -8,7 +8,8 @@ import { loadConfig } from '../src/server/config';
 import { Store } from '../src/server/store';
 
 const model = {
-  title: 'Checkout',
+  title: 'Private checkout title',
+  version: 'private',
   description: 'Private project summary',
   items: [
     { id: 'web', name: 'Web', description: '<p>Browser entry point.</p>', icon: 'server' },
@@ -31,6 +32,8 @@ const manifest = {
 
 test('preparation preserves author view order, includes referenced data only, and freezes artwork', () => {
   const snapshot = prepareWalkthrough(model, manifest);
+  expect(snapshot.model.title).toBe(manifest.title);
+  expect(snapshot.model.version).toBeUndefined();
   expect(snapshot.model.views.map(({ id }) => id)).toEqual(['jobs', 'overview']);
   expect(snapshot.model.items.map(({ id }) => id)).toEqual(['web', 'worker']);
   expect(snapshot.model.items[0].description).toBe('<p>Browser entry point.</p>');

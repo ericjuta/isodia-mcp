@@ -14,7 +14,7 @@ Make it possible to link a public article to an architecture diagram without con
 
 ## Plan of work
 
-1. Take a Zod-validated manifest (title, article URL, ordered steps, explicit view IDs) and a separately exported Isoflow model. Project it onto the chosen views, keeping their referenced items, icons and colors only; discard project-level description and view update timestamps. Validate both the artifact and its references, including optional component focus in each step's view.
+1. Take a Zod-validated manifest (title, article URL, ordered steps, explicit view IDs) and a separately exported Isoflow model. Project it onto the chosen views, keeping their referenced items, icons and colors only; replace the source title with the manifest title and discard other project-level metadata and view update timestamps. Validate both the artifact and its references, including optional component focus in each step's view.
 2. Add a preparation command that writes a new JSON file without overwriting an existing publication. Serve files named by simple versioned slugs from an explicitly configured directory; never query SQLite for public walkthrough data. Set no-store on publication responses. No public filesystem listing or write API.
 3. For `/w/<id>/embed`, emit `Content-Security-Policy: frame-ancestors <article origin>`; deny framing on `/w/<id>`. Permit absolute HTTPS article URLs, with only HTTP loopback allowed for local preview. Test configuration off, malformed paths/artifacts, unauthenticated read and no live project exposure.
 

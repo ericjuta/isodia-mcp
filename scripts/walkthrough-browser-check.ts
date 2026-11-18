@@ -56,9 +56,10 @@ try {
     await page.keyboard.press('Home');
     await page.waitForFunction((selector) => (document.querySelector(selector) as HTMLSelectElement)?.value === '', {}, picker);
     await page.waitForSelector(focus('keys'), { hidden: true });
-    await page.locator('nav[aria-label="Published views"] button').filter((button) => button.textContent === 'After the order').click();
+    console.log('PASS: direct step, component notes, icon click and keyboard picker');
+    await page.locator('::-p-aria([name="After the order"][role="button"])').click();
     await page.waitForSelector('[data-item="outbox"]');
-    await page.locator('button').filter((button) => button.textContent === 'Return to step').click();
+    await page.locator('::-p-aria([name="Return to step"][role="button"])').click();
     await page.waitForSelector(focus('payments'));
     assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H2');
     await page.click('[data-step="after-the-order"]');
@@ -79,7 +80,7 @@ try {
     await approvedFrame.waitForSelector('[data-testid="walkthrough"][data-embed="true"]');
     await approvedFrame.waitForSelector(focus('payments'));
     assert.equal(await approvedFrame.$eval('a[target="_blank"].link', (element) => (element as HTMLAnchorElement).href), `${readerOrigin}${step}`);
-    assert.equal(await approvedFrame.$eval('a.link:last-child', (element) => (element as HTMLAnchorElement).href), articleUrl);
+    assert.equal(await approvedFrame.$eval('.walkthrough-links a:last-child', (element) => (element as HTMLAnchorElement).href), articleUrl);
     assert.ok(await approvedFrame.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no narrow horizontal overflow');
     assert.equal(await approvedFrame.$eval(stage, (element) => element.dispatchEvent(new WheelEvent('wheel', {
       bubbles: true, cancelable: true, deltaY: 10

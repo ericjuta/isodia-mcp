@@ -117,9 +117,9 @@ jq -r '.model.views[] | .name, (.connectors[]?.description // empty), (.textBoxe
 jq -r '.model.icons[]?.id' "$out"   # custom icon artwork travels inside the file
 ```
 
-The project's description and the views' timestamps are dropped. Nothing else is rewritten, so if
-something in a published view should not be public, change the model, export it again and prepare
-again.
+The publication uses the manifest title, not the editor project title. Project-level metadata
+and view timestamps are dropped. If something in a published view should not be public, change
+the model, export it and prepare the publication again.
 
 ## 5. Publish
 
