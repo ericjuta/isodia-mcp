@@ -1,0 +1,867 @@
+{
+  "version": "",
+  "title": "Checkout (synthetic)",
+  "description": "A made-up checkout used to show a published walkthrough. No real system is described.",
+  "items": [
+    {
+      "id": "shopper",
+      "name": "Shopper",
+      "description": "<p>A browser on the checkout page. Holds a session cookie and nothing else.</p>",
+      "icon": "browser"
+    },
+    {
+      "id": "cdn",
+      "name": "CDN",
+      "description": "<p>Serves the checkout page and its scripts. Never caches /api responses.</p>",
+      "icon": "cdn"
+    },
+    {
+      "id": "gateway",
+      "name": "API gateway",
+      "description": "<p>Terminates TLS, checks the session with Identity and routes /api/checkout to the checkout service. Rejects requests without a session before they reach a service.</p>",
+      "icon": "gateway"
+    },
+    {
+      "id": "identity",
+      "name": "Identity",
+      "description": "<p>Sessions and customer accounts. Answers one question for the gateway: who is this?</p>",
+      "icon": "key"
+    },
+    {
+      "id": "checkout",
+      "name": "Checkout service",
+      "description": "<p>Turns a cart into an order: prices it, reserves stock, asks Payments for a charge and writes the order.</p>",
+      "icon": "service"
+    },
+    {
+      "id": "cart",
+      "name": "Cart store",
+      "description": "<p>Baskets keyed by session. Losing it loses a basket, not an order.</p>",
+      "icon": "cache"
+    },
+    {
+      "id": "orders",
+      "name": "Orders database",
+      "description": "<p>Orders and the outbox table, written in one transaction. The source of truth for what was bought.</p>",
+      "icon": "database"
+    },
+    {
+      "id": "payments",
+      "name": "Payments service",
+      "description": "<p>The only component that talks to the payment provider. Every charge carries an idempotency key derived from the order id.</p>",
+      "icon": "service"
+    },
+    {
+      "id": "keys",
+      "name": "Idempotency keys",
+      "description": "<p>Remembers each charge request and its result for 24 hours, so a retried checkout returns the first answer instead of charging again.</p>",
+      "icon": "cache"
+    },
+    {
+      "id": "psp",
+      "name": "Payment provider",
+      "description": "<p>Third party. Authorises cards and wallets, then confirms asynchronously with a signed webhook.</p>",
+      "icon": "paymentcard"
+    },
+    {
+      "id": "outbox",
+      "name": "Outbox relay",
+      "description": "<p>Reads committed rows from the outbox table and publishes them. An event is published only if its order was committed.</p>",
+      "icon": "worker"
+    },
+    {
+      "id": "events",
+      "name": "Event stream",
+      "description": "<p>Order events, retained for seven days so a consumer can replay after an outage.</p>",
+      "icon": "stream"
+    },
+    {
+      "id": "fulfilment",
+      "name": "Fulfilment worker",
+      "description": "<p>Picks, packs and books a courier for each paid order.</p>",
+      "icon": "worker"
+    },
+    {
+      "id": "notifier",
+      "name": "Notifier",
+      "description": "<p>Sends the order confirmation. Safe to run twice: it records which events it has handled.</p>",
+      "icon": "bell"
+    },
+    {
+      "id": "courier",
+      "name": "Courier",
+      "description": "<p>Third party. Collects parcels and returns a tracking number.</p>",
+      "icon": "truck"
+    },
+    {
+      "id": "mail",
+      "name": "Mail provider",
+      "description": "<p>Third party. Delivers transactional email.</p>",
+      "icon": "mail"
+    }
+  ],
+  "views": [
+    {
+      "id": "request-path",
+      "name": "Request path",
+      "items": [
+        {
+          "id": "shopper",
+          "tile": {
+            "x": -1,
+            "y": -3
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "cdn",
+          "tile": {
+            "x": -1,
+            "y": -11
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "gateway",
+          "tile": {
+            "x": -1,
+            "y": -14
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "identity",
+          "tile": {
+            "x": -2,
+            "y": -22
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "checkout",
+          "tile": {
+            "x": 1,
+            "y": -22
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "cart",
+          "tile": {
+            "x": -2,
+            "y": -30
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "orders",
+          "tile": {
+            "x": 1,
+            "y": -30
+          },
+          "labelHeight": 80
+        }
+      ],
+      "rectangles": [
+        {
+          "id": "client",
+          "color": "color7",
+          "from": {
+            "x": -2,
+            "y": -4
+          },
+          "to": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        {
+          "id": "edge",
+          "color": "color1",
+          "from": {
+            "x": -2,
+            "y": -15
+          },
+          "to": {
+            "x": 1,
+            "y": -7
+          }
+        },
+        {
+          "id": "services",
+          "color": "color6",
+          "from": {
+            "x": -3,
+            "y": -23
+          },
+          "to": {
+            "x": 2,
+            "y": -18
+          }
+        },
+        {
+          "id": "data",
+          "color": "color3",
+          "from": {
+            "x": -3,
+            "y": -31
+          },
+          "to": {
+            "x": 2,
+            "y": -26
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "shopper-to-cdn",
+          "description": "HTTPS",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "shopper-to-cdn:0",
+              "ref": {
+                "item": "shopper"
+              }
+            },
+            {
+              "id": "shopper-to-cdn:1",
+              "ref": {
+                "item": "cdn"
+              }
+            }
+          ]
+        },
+        {
+          "id": "cdn-to-gateway",
+          "description": "/api",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "cdn-to-gateway:0",
+              "ref": {
+                "item": "cdn"
+              }
+            },
+            {
+              "id": "cdn-to-gateway:1",
+              "ref": {
+                "item": "gateway"
+              }
+            }
+          ]
+        },
+        {
+          "id": "gateway-to-identity",
+          "description": "session",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "gateway-to-identity:0",
+              "ref": {
+                "item": "gateway"
+              }
+            },
+            {
+              "id": "gateway-to-identity:1",
+              "ref": {
+                "item": "identity"
+              }
+            }
+          ]
+        },
+        {
+          "id": "gateway-to-checkout",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "gateway-to-checkout:0",
+              "ref": {
+                "item": "gateway"
+              }
+            },
+            {
+              "id": "gateway-to-checkout:1",
+              "ref": {
+                "item": "checkout"
+              }
+            }
+          ]
+        },
+        {
+          "id": "checkout-to-cart",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "checkout-to-cart:0",
+              "ref": {
+                "item": "checkout"
+              }
+            },
+            {
+              "id": "checkout-to-cart:1",
+              "ref": {
+                "item": "cart"
+              }
+            }
+          ]
+        },
+        {
+          "id": "checkout-to-orders",
+          "description": "write order",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "checkout-to-orders:0",
+              "ref": {
+                "item": "checkout"
+              }
+            },
+            {
+              "id": "checkout-to-orders:1",
+              "ref": {
+                "item": "orders"
+              }
+            }
+          ]
+        }
+      ],
+      "textBoxes": [
+        {
+          "id": "client-label",
+          "tile": {
+            "x": -1,
+            "y": 0
+          },
+          "content": "Client",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "edge-label",
+          "tile": {
+            "x": -1,
+            "y": -8
+          },
+          "content": "Edge",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "services-label",
+          "tile": {
+            "x": -2,
+            "y": -19
+          },
+          "content": "Services",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "data-label",
+          "tile": {
+            "x": -2,
+            "y": -27
+          },
+          "content": "Data",
+          "fontSize": 0.6,
+          "orientation": "X"
+        }
+      ]
+    },
+    {
+      "id": "payment",
+      "name": "Payment",
+      "items": [
+        {
+          "id": "checkout",
+          "tile": {
+            "x": 0,
+            "y": -3
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "payments",
+          "tile": {
+            "x": 0,
+            "y": -6
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "keys",
+          "tile": {
+            "x": -5,
+            "y": -14
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "orders",
+          "tile": {
+            "x": -2,
+            "y": -14
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "psp",
+          "tile": {
+            "x": 3,
+            "y": -14
+          },
+          "labelHeight": 80
+        }
+      ],
+      "rectangles": [
+        {
+          "id": "services",
+          "color": "color6",
+          "from": {
+            "x": -2,
+            "y": -7
+          },
+          "to": {
+            "x": 2,
+            "y": 1
+          }
+        },
+        {
+          "id": "data",
+          "color": "color3",
+          "from": {
+            "x": -6,
+            "y": -15
+          },
+          "to": {
+            "x": -1,
+            "y": -10
+          }
+        },
+        {
+          "id": "outside",
+          "color": "color4",
+          "from": {
+            "x": 1,
+            "y": -15
+          },
+          "to": {
+            "x": 6,
+            "y": -10
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "checkout-to-payments",
+          "description": "charge",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "checkout-to-payments:0",
+              "ref": {
+                "item": "checkout"
+              }
+            },
+            {
+              "id": "checkout-to-payments:1",
+              "ref": {
+                "item": "payments"
+              }
+            }
+          ]
+        },
+        {
+          "id": "payments-to-keys",
+          "description": "idempotency key",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "payments-to-keys:0",
+              "ref": {
+                "item": "payments"
+              }
+            },
+            {
+              "id": "payments-to-keys:1",
+              "ref": {
+                "item": "keys"
+              }
+            }
+          ]
+        },
+        {
+          "id": "payments-to-psp",
+          "description": "authorise",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "payments-to-psp:0",
+              "ref": {
+                "item": "payments"
+              }
+            },
+            {
+              "id": "payments-to-psp:1",
+              "ref": {
+                "item": "psp"
+              }
+            }
+          ]
+        },
+        {
+          "id": "psp-to-payments",
+          "description": "webhook",
+          "color": "slate",
+          "style": "DASHED",
+          "anchors": [
+            {
+              "id": "psp-to-payments:0",
+              "ref": {
+                "item": "psp"
+              }
+            },
+            {
+              "id": "psp-to-payments:1",
+              "ref": {
+                "item": "payments"
+              }
+            }
+          ]
+        },
+        {
+          "id": "payments-to-orders",
+          "description": "mark paid",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "payments-to-orders:0",
+              "ref": {
+                "item": "payments"
+              }
+            },
+            {
+              "id": "payments-to-orders:1",
+              "ref": {
+                "item": "orders"
+              }
+            }
+          ]
+        }
+      ],
+      "textBoxes": [
+        {
+          "id": "services-label",
+          "tile": {
+            "x": -1,
+            "y": 0
+          },
+          "content": "Services",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "data-label",
+          "tile": {
+            "x": -5,
+            "y": -11
+          },
+          "content": "Data",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "outside-label",
+          "tile": {
+            "x": 2,
+            "y": -11
+          },
+          "content": "Third parties",
+          "fontSize": 0.6,
+          "orientation": "X"
+        }
+      ]
+    },
+    {
+      "id": "after-the-order",
+      "name": "After the order",
+      "items": [
+        {
+          "id": "orders",
+          "tile": {
+            "x": 0,
+            "y": -3
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "outbox",
+          "tile": {
+            "x": 0,
+            "y": -11
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "events",
+          "tile": {
+            "x": 0,
+            "y": -14
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "fulfilment",
+          "tile": {
+            "x": -2,
+            "y": -17
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "notifier",
+          "tile": {
+            "x": 1,
+            "y": -17
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "courier",
+          "tile": {
+            "x": -2,
+            "y": -25
+          },
+          "labelHeight": 80
+        },
+        {
+          "id": "mail",
+          "tile": {
+            "x": 1,
+            "y": -25
+          },
+          "labelHeight": 80
+        }
+      ],
+      "rectangles": [
+        {
+          "id": "data",
+          "color": "color3",
+          "from": {
+            "x": -1,
+            "y": -4
+          },
+          "to": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        {
+          "id": "async",
+          "color": "color2",
+          "from": {
+            "x": -3,
+            "y": -18
+          },
+          "to": {
+            "x": 3,
+            "y": -7
+          }
+        },
+        {
+          "id": "outside",
+          "color": "color4",
+          "from": {
+            "x": -3,
+            "y": -26
+          },
+          "to": {
+            "x": 2,
+            "y": -21
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "orders-to-outbox",
+          "description": "committed rows",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "orders-to-outbox:0",
+              "ref": {
+                "item": "orders"
+              }
+            },
+            {
+              "id": "orders-to-outbox:1",
+              "ref": {
+                "item": "outbox"
+              }
+            }
+          ]
+        },
+        {
+          "id": "outbox-to-events",
+          "description": "order placed",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "outbox-to-events:0",
+              "ref": {
+                "item": "outbox"
+              }
+            },
+            {
+              "id": "outbox-to-events:1",
+              "ref": {
+                "item": "events"
+              }
+            }
+          ]
+        },
+        {
+          "id": "events-to-fulfilment",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "events-to-fulfilment:0",
+              "ref": {
+                "item": "events"
+              }
+            },
+            {
+              "id": "events-to-fulfilment:1",
+              "ref": {
+                "item": "fulfilment"
+              }
+            }
+          ]
+        },
+        {
+          "id": "events-to-notifier",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "events-to-notifier:0",
+              "ref": {
+                "item": "events"
+              }
+            },
+            {
+              "id": "events-to-notifier:1",
+              "ref": {
+                "item": "notifier"
+              }
+            }
+          ]
+        },
+        {
+          "id": "fulfilment-to-courier",
+          "description": "book",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "fulfilment-to-courier:0",
+              "ref": {
+                "item": "fulfilment"
+              }
+            },
+            {
+              "id": "fulfilment-to-courier:1",
+              "ref": {
+                "item": "courier"
+              }
+            }
+          ]
+        },
+        {
+          "id": "notifier-to-mail",
+          "color": "slate",
+          "anchors": [
+            {
+              "id": "notifier-to-mail:0",
+              "ref": {
+                "item": "notifier"
+              }
+            },
+            {
+              "id": "notifier-to-mail:1",
+              "ref": {
+                "item": "mail"
+              }
+            }
+          ]
+        }
+      ],
+      "textBoxes": [
+        {
+          "id": "data-label",
+          "tile": {
+            "x": 0,
+            "y": 0
+          },
+          "content": "Data",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "async-label",
+          "tile": {
+            "x": -2,
+            "y": -8
+          },
+          "content": "Background work",
+          "fontSize": 0.6,
+          "orientation": "X"
+        },
+        {
+          "id": "outside-label",
+          "tile": {
+            "x": -2,
+            "y": -22
+          },
+          "content": "Third parties",
+          "fontSize": 0.6,
+          "orientation": "X"
+        }
+      ]
+    }
+  ],
+  "icons": [],
+  "colors": [
+    {
+      "id": "color1",
+      "value": "#d1d9ec"
+    },
+    {
+      "id": "color2",
+      "value": "#dcd4ed"
+    },
+    {
+      "id": "color3",
+      "value": "#f2e7c4"
+    },
+    {
+      "id": "color4",
+      "value": "#f1d1ca"
+    },
+    {
+      "id": "color5",
+      "value": "#f5ddc5"
+    },
+    {
+      "id": "color6",
+      "value": "#d0e4ca"
+    },
+    {
+      "id": "color7",
+      "value": "#cde5df"
+    },
+    {
+      "id": "slate",
+      "value": "#80848c"
+    }
+  ]
+}
