@@ -89,14 +89,16 @@ export function createApp(store: Store, config: AppConfig): Hono {
   app.get('/healthz', (c) => c.text('ok'));
 
   /** What the web app shows under "Connect an agent". */
-  app.get('/api/info', (c) =>
-    c.json({
+  app.get('/api/info', (c) => {
+    const entry = join(import.meta.dir, 'mcp-stdio.ts');
+    return c.json({
       version: pkg.version,
       mcpUrl: `${config.publicUrl}/mcp`,
-      stdioCommand: `bun ${join(import.meta.dir, 'mcp-stdio.ts')}`,
+      stdioCommand: `bun ${entry}`,
+      stdio: { command: 'bun', args: [entry], env: { ISODIA_URL: config.publicUrl } },
       tokenRequired: config.token !== undefined
-    })
-  );
+    });
+  });
 
   app.get('/api/projects', (c) => c.json(store.listProjects()));
 
@@ -233,7 +235,7 @@ export function createApp(store: Store, config: AppConfig): Hono {
       }
       const shell = Bun.file(join(root, 'index.html'));
       if (await shell.exists()) return new Response(shell);
-      return c.text('The web app has not been built. Run `bun run build`.', 503);
+      return c.text('No built web app on this port. For local development, run `bun run dev:web` and open its address. For a single-server deployment, build the web app first.', 503);
     });
   }
 

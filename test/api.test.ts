@@ -57,6 +57,14 @@ test('the server is local by default and will not serve other machines without a
   expect(() => assertSafeToListen(loadConfig({ HOST: '0.0.0.0', ISODIA_TOKEN: 's' }))).not.toThrow();
 });
 
+test('development links use the web port without changing the API listener or production links', () => {
+  const env = { PORT: '4510', ISODIA_WEB_PORT: '4511' };
+  expect(loadConfig({}, true)).toMatchObject({ port: 4400, publicUrl: 'http://localhost:4401' });
+  expect(loadConfig(env, true)).toMatchObject({ port: 4510, publicUrl: 'http://localhost:4511' });
+  expect(loadConfig(env)).toMatchObject({ port: 4510, publicUrl: 'http://localhost:4510' });
+  expect(loadConfig({ ...env, ISODIA_URL: 'https://diagrams.test/' }, true).publicUrl).toBe('https://diagrams.test');
+});
+
 test('an editor save against a stale revision gets 409 with the current revision, and is not applied', async () => {
   const store = new Store(':memory:');
   const app = createApp(store, { publicUrl: 'https://diagrams.test', token: undefined });

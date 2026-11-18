@@ -39,7 +39,7 @@ export interface SharedProject {
 export interface ServerInfo {
   version: string;
   mcpUrl: string;
-  stdioCommand: string;
+  stdio: { command: string; args: string[]; env: { ISODIA_URL: string } };
   tokenRequired: boolean;
 }
 

@@ -33,7 +33,7 @@ interface Camera {
 }
 
 type Gesture =
-  | { kind: 'pan'; startX: number; startY: number; camera: Camera; moved: boolean; clears: boolean; readerHit?: string | null }
+  | { kind: 'pan'; startX: number; startY: number; camera: Camera; moved: boolean; pick?: string | null }
   | { kind: 'move'; target: Target; from: Coords; origin: Coords }
   | { kind: 'resize'; region: string; fixed: Coords }
   | { kind: 'draw'; from: Coords };
@@ -56,6 +56,12 @@ const outline = (lowX: number, highX: number, lowY: number, highY: number): stri
 const viewOf = (model: Model, id: string): View => model.views.find((view) => view.id === id) ?? model.views[0];
 /** The message of a refused edit, without the batch position an agent would want. */
 const plain = (error: DiagramError): string => error.message.replace(/^Operation \d+ \([a-z_]+\): /, '');
+
+/** Resolve the visible artwork or label before falling back to the ground plane. */
+function drawnItemAt(view: View, target: EventTarget | null) {
+  const id = target instanceof Element ? target.closest('[data-item]')?.getAttribute('data-item') : null;
+  return id == null ? undefined : view.items.find((item) => item.id === id);
+}
 
 function Layer({ parts, kind }: { parts: ScenePart[]; kind: string }) {
   return (
@@ -330,9 +336,9 @@ export default function Diagram({ shown, editable, onChange, readerSelection }: 
     return tileAt({ x: (event.clientX - box.left - x) / zoom, y: (event.clientY - box.top - y) / zoom });
   };
 
-  /** Begin panning. With `clears`, a press released without moving drops the selection. */
-  const startPan = (event: ReactPointerEvent, clears: boolean, readerHit?: string | null): void => {
-    gesture.current = { kind: 'pan', startX: event.clientX, startY: event.clientY, camera: cameraRef.current, moved: false, clears, readerHit };
+  /** A click can select a component, clear selection (null), or leave it alone (undefined). */
+  const startPan = (event: ReactPointerEvent, pick?: string | null): void => {
+    gesture.current = { kind: 'pan', startX: event.clientX, startY: event.clientY, camera: cameraRef.current, moved: false, pick };
   };
 
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
@@ -342,20 +348,14 @@ export default function Diagram({ shown, editable, onChange, readerSelection }: 
     event.currentTarget.setPointerCapture(event.pointerId);
     setPicker(null);
     setFresh(false);
+    if (event.button === 1) return startPan(event);
+
     const tile = tileUnder(event);
     const base = viewOf(committed.current, shown.view);
-    const target = whatIsAt(base, tile);
+    const drawnItem = drawnItemAt(base, event.target);
+    const target: Target | null = drawnItem ? { kind: 'item', id: drawnItem.id } : whatIsAt(base, tile);
 
-    if (event.button === 1) return startPan(event, false);
-
-    if (!editable) {
-      if (readerSelection) {
-        const drawnItem = event.target instanceof Element ? event.target.closest('[data-item]')?.getAttribute('data-item') : null;
-        return startPan(event, false, drawnItem ?? (target?.kind === 'item' ? target.id : null));
-      }
-      setSelection(target?.kind === 'item' ? target : null);
-      return startPan(event, false);
-    }
+    if (!editable) return startPan(event, target?.kind === 'item' ? target.id : null);
 
     if (tool === 'connect') {
       if (target?.kind !== 'item') {
@@ -399,7 +399,7 @@ export default function Diagram({ shown, editable, onChange, readerSelection }: 
 
     if (!target) {
       // Released without moving, this press clears the selection; moved, it pans.
-      return startPan(event, true);
+      return startPan(event, null);
     }
     setSelection(target);
     const origin =
@@ -412,9 +412,10 @@ export default function Diagram({ shown, editable, onChange, readerSelection }: 
   };
 
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>): void => {
-    const tile = tileUnder(event);
-    setHover((was) => (was && sameTile(was, tile) ? was : tile));
     const active = gesture.current;
+    const drawnItem = !active && editable && (tool === 'select' || tool === 'connect') ? drawnItemAt(view, event.target) : undefined;
+    const tile = drawnItem?.tile ?? tileUnder(event);
+    setHover((was) => (was && sameTile(was, tile) ? was : tile));
     if (!active) return;
 
     if (active.kind === 'pan') {
@@ -450,8 +451,9 @@ export default function Diagram({ shown, editable, onChange, readerSelection }: 
     gesture.current = null;
     if (!active) return;
     if (active.kind === 'pan') {
-      if (!active.moved && active.clears) setSelection(null);
-      if (!active.moved && active.readerHit !== undefined) readerSelection?.onSelect(active.readerHit);
+      if (active.moved || active.pick === undefined) return;
+      if (readerSelection) readerSelection.onSelect(active.pick);
+      else setSelection(active.pick === null ? null : { kind: 'item', id: active.pick });
     } else if (active.kind === 'draw') {
       const to = tileUnder(event);
       setDrawing(null);

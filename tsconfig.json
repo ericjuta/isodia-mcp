@@ -23,6 +23,8 @@
   "include": [
     "src",
     "scripts/prepare-walkthrough.ts",
+    "scripts/onboarding-browser-check.ts",
+    "web/vite.config.ts",
     "scripts/walkthrough-browser-check.ts",
     "web/src",
     "examples",

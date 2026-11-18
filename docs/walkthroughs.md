@@ -146,6 +146,8 @@ served from a cache in front of the server.
 
 ### Locally
 
+For a first look without building the app, use the [development preview](getting-started.md#3-preview-the-checkout-walkthrough). Use the built app below to test the server's embed policy.
+
 ```bash
 mkdir -p ~/isodia-walkthroughs
 cp /tmp/checkout-architecture-v1.json ~/isodia-walkthroughs/
