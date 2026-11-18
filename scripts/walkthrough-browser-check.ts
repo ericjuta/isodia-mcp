@@ -57,9 +57,11 @@ try {
     await page.waitForFunction((selector) => (document.querySelector(selector) as HTMLSelectElement)?.value === '', {}, picker);
     await page.waitForSelector(focus('keys'), { hidden: true });
     console.log('PASS: direct step, component notes, icon click and keyboard picker');
-    await page.locator('::-p-aria([name="After the order"][role="button"])').click();
+    await page.click('nav[aria-label="Published views"] [data-view="after-the-order"]');
     await page.waitForSelector('[data-item="outbox"]');
-    await page.locator('::-p-aria([name="Return to step"][role="button"])').click();
+    console.log('PASS: another published view opens without changing the step');
+    assert.equal(page.url(), `${readerOrigin}${step}`);
+    await page.click('[data-testid="return-to-step"]');
     await page.waitForSelector(focus('payments'));
     assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H2');
     await page.click('[data-step="after-the-order"]');

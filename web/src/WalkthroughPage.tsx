@@ -33,7 +33,7 @@ function StepReader({ story, step }: { story: Walkthrough; step: Step }) {
           <h2 ref={heading} tabIndex={-1}>{step.title}</h2>
           <p className="walkthrough-prose" data-testid="step-body">{step.body}</p>
           {exploring && (
-            <button type="button" className="btn" onClick={() => {
+            <button type="button" className="btn" data-testid="return-to-step" onClick={() => {
               setViewId(step.view);
               setComponent(step.component ?? null);
               setReset((value) => value + 1);
@@ -45,7 +45,7 @@ function StepReader({ story, step }: { story: Walkthrough; step: Step }) {
           <h3>Explore this diagram</h3>
           <nav aria-label="Published views" className="walkthrough-views">
             {model.views.map(({ id, name }) => (
-              <button key={id} type="button" className="btn" aria-pressed={viewId === id} onClick={() => {
+              <button key={id} type="button" className="btn" data-view={id} aria-pressed={viewId === id} onClick={() => {
                 if (id === viewId) return;
                 setViewId(id);
                 setComponent(null);
