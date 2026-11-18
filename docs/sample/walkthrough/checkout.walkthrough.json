@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "title": "How checkout works",
+  "articleUrl": "https://example.com/articles/checkout#architecture",
+  "views": ["request-path", "payment", "after-the-order"],
+  "steps": [
+    {
+      "id": "request-path",
+      "title": "One request, one front door",
+      "body": "The shopper's browser talks only to the CDN. Everything under /api passes through the gateway, which checks the session with Identity before any service sees the request. The checkout service turns the cart into an order and writes it to the orders database.",
+      "view": "request-path",
+      "component": "gateway"
+    },
+    {
+      "id": "charge-once",
+      "title": "Charge once, even when retried",
+      "body": "Checkout never calls the payment provider itself. It asks the payments service, which stores an idempotency key for the order before it authorises the card. A shopper who presses Pay twice, or a client that retries after a timeout, gets the first result back instead of a second charge.",
+      "view": "payment",
+      "component": "payments"
+    },
+    {
+      "id": "after-the-order",
+      "title": "Everything after the order is asynchronous",
+      "body": "The order and its outbox row are committed together. The outbox relay publishes only committed rows, so fulfilment and the confirmation email never act on an order that was rolled back. Both consumers can be slow or down without blocking the next checkout.",
+      "view": "after-the-order",
+      "component": "outbox"
+    }
+  ]
+}

@@ -14,6 +14,8 @@ export interface Config {
   publicUrl: string;
   /** When set, the API and the HTTP MCP endpoint require it as a bearer token. */
   token: string | undefined;
+  /** Optional directory of operator-published walkthrough snapshots. */
+  walkthroughsRoot?: string;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -23,7 +25,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port,
     databasePath: env.ISODIA_DB ?? join(import.meta.dir, '../../data/isodia.db'),
     publicUrl: (env.ISODIA_URL ?? `http://localhost:${port}`).replace(/\/+$/, ''),
-    token: env.ISODIA_TOKEN || undefined
+    token: env.ISODIA_TOKEN || undefined,
+    walkthroughsRoot: env.ISODIA_WALKTHROUGHS_DIR || undefined
   };
 }
 

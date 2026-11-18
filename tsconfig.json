@@ -22,6 +22,8 @@
   },
   "include": [
     "src",
+    "scripts/prepare-walkthrough.ts",
+    "scripts/walkthrough-browser-check.ts",
     "web/src",
     "examples",
     "test"

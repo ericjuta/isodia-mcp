@@ -178,6 +178,25 @@ Ctrl or Cmd with the wheel zooms. Keys: `V` `C` `R` `T` `I`, `Del`, `Esc`, `Ctrl
 `Ctrl+Shift+Z`. A share page is the same canvas, read-only: clicking an item shows its name and
 notes.
 
+## Published walkthroughs
+
+A technical article can link to, or embed, a read-only walkthrough of an architecture: a few
+ordered steps, each with prose, a view and an optional focused component, that readers can
+follow, leave to explore the other published views, and return to. A walkthrough is a reviewed,
+versioned snapshot file, prepared from an exported model and a short manifest, that the server
+reads from `ISODIA_WALKTHROUGHS_DIR`; it never exposes the live project. Only the article's own
+origin may embed it.
+
+```bash
+bun scripts/prepare-walkthrough.ts docs/sample/walkthrough/checkout.isoflow.json \
+  docs/sample/walkthrough/checkout.walkthrough.json /tmp/checkout-architecture-v1.json
+```
+
+[`docs/walkthroughs.md`](docs/walkthroughs.md) covers writing the manifest, reviewing what goes
+public, publishing locally and in production, the iframe snippet, local embed previews, and
+revising or withdrawing a publication. [`docs/sample/walkthrough/`](docs/sample/walkthrough/)
+is a complete synthetic example with three views and three steps.
+
 ## Design
 
 One look runs through the app and the pictures it renders: warm paper, one ink, pale washes
@@ -212,6 +231,7 @@ project meanwhile, the save is refused (`409`) and the browser shows the newer r
 | `ISODIA_DB` | `data/isodia.db` | SQLite file shared by all processes |
 | `ISODIA_URL` | `http://localhost:$PORT` | Public base URL used in links and MCP output |
 | `ISODIA_TOKEN` | unset | When set, the API, `/mcp` and the app require `Authorization: Bearer <token>` |
+| `ISODIA_WALKTHROUGHS_DIR` | unset | Directory of published walkthrough files, read only. Unset turns walkthroughs off; see [`docs/walkthroughs.md`](docs/walkthroughs.md) |
 
 Share links are always public: the token is the credential. That is what makes a shared diagram
 openable by a client without an account.
@@ -225,6 +245,9 @@ openable by a client without an account.
 - **Custom icons are inline pictures.** An icon `url` must be a `data:image/…` URL; file paths
   and remote addresses are rejected, on import too.
 - **A share link is a credential.** Anyone holding it can read that project until you revoke it.
+- **A published walkthrough is public.** Anyone can read every component, note and label in its
+  views, without a token, until its file is removed; removal does not recall copies already
+  taken. Review the prepared file before publishing it.
 - **Diagram text is user content and is only ever shown as text.** Names, labels and notes are
   escaped by the renderer and reduced to plain text by the canvas; no HTML from a model is
   inserted into the page. A model's own icons are images shown through SVG `<image>`, which
@@ -241,7 +264,8 @@ Report vulnerabilities privately through the repository's security advisories, n
 `GET /api/projects/:id/revisions`, `POST /api/projects/:id/revisions/:n/restore`,
 `POST /api/projects/:id/checkpoints`, `GET/POST /api/projects/:id/shares`,
 `DELETE /api/shares/:token`, `GET /api/icons`, `POST /mcp`,
-and the public `GET /api/shared/:token`.
+and the public `GET /api/shared/:token`. When walkthroughs are on, `GET /api/walkthroughs/:id`,
+`/w/:id` and `/w/:id/embed` are public as well.
 
 ## Tests
 

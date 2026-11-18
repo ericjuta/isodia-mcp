@@ -12,14 +12,16 @@ import { renderViewSvg } from '../core/render';
 import { ModelValidationError } from '../core/schema';
 import type { Model } from '../core/types';
 import { createMcpServer } from './mcp';
+import { addWalkthroughRoutes } from './walkthroughs';
 import { ConflictError, NotFoundError, type Store } from './store';
 
 export interface AppConfig {
   publicUrl: string;
-  /** When set, everything except share links requires it as a bearer token. */
+  /** When set, private APIs and MCP require it as a bearer token. */
   token: string | undefined;
   /** Directory holding the built web app; omitted when only the API is wanted. */
   webRoot?: string;
+  walkthroughsRoot?: string;
 }
 
 const createSchema = z.object({
@@ -216,6 +218,8 @@ export function createApp(store: Store, config: AppConfig): Hono {
   app.on(['GET', 'DELETE'], '/mcp', (c) =>
     c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'This endpoint is stateless; use POST.' }, id: null }, 405)
   );
+
+  addWalkthroughRoutes(app, config.walkthroughsRoot, config.webRoot);
 
   app.all('/api/*', (c) => c.json({ error: 'Not found.' }, 404));
 
