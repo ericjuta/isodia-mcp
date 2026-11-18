@@ -40,7 +40,7 @@ same renderer that exports the pictures.
 
 ## Quick start
 
-Install dependencies and start the API in one terminal:
+Install [Bun](https://bun.com/docs/installation) and [Node.js](https://nodejs.org/en/download) 22.12 or newer. In one terminal, install dependencies and start the API:
 
 ```bash
 bun install --frozen-lockfile

@@ -4,7 +4,9 @@ Isodia is a browser editor for architecture diagrams. You can draw by hand or co
 
 ## 1. Run the editor
 
-Install [Git](https://git-scm.com/install/) and [Bun](https://bun.com/docs/installation). CI uses Bun 1.4.4. Run these commands in a terminal:
+Install [Git](https://git-scm.com/install/), [Bun](https://bun.com/docs/installation), and [Node.js](https://nodejs.org/en/download) 22.12 or newer. CI uses Bun 1.4.4. The development editor runs Vite with Node.js. These examples use a shell such as Bash.
+
+Run these commands in a terminal:
 
 ```sh
 git clone https://github.com/ericjuta/isodia-mcp.git

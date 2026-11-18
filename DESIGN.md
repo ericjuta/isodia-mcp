@@ -288,8 +288,9 @@ size it is read at, which is small.
   strongest text in the picture because they name the things.
 - **Connector labels** are white pills in soft ink. The pill shape is the distinction: a
   rounded rectangle is a thing, a pill is something that travels.
-- **Label placement** is on the route, on a free tile with the most clearance from every item,
-  nearest the middle. Two labels never share a tile.
+- **Label placement** is on the route. Prefer a tile without a label, away from text, with
+  room around neighbouring items. Tight routes can still produce overlaps. Inspect the export
+  at the reader's size.
 
 Default export width is 1400 px; the worked examples use 1600. Natural canvases run from
 about 2,300 to 3,600 px wide, so a 22 px label lands between 10 and 15 px in a 1600 px file.
