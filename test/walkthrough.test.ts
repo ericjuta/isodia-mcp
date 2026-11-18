@@ -49,10 +49,10 @@ test('refuses broken step references, invalid article origins and unprojected or
   expect(() => prepareWalkthrough(model, { ...manifest, views: ['jobs', 'unknown'] })).toThrow(/Unknown published view/);
   expect(() => prepareWalkthrough(model, { ...manifest, steps: [{ ...step, view: 'ops' }] })).toThrow(/not included/);
   expect(() => prepareWalkthrough(model, { ...manifest, steps: [{ ...step, component: 'web' }] })).toThrow(/not in view/);
-  for (const articleUrl of ['javascript:void(0)', '//blog.example', 'http://blog.example', 'https://user@blog.example', 'https://blog.example;test']) {
+  for (const articleUrl of ['javascript:void(0)', '//blog.example', 'http://blog.example', 'https://user@blog.example', 'https://blog.example;test', 'http://[::1]:8080/']) {
     expect(() => prepareWalkthrough(model, { ...manifest, articleUrl })).toThrow(/absolute HTTPS/);
   }
-  expect(prepareWalkthrough(model, { ...manifest, articleUrl: 'http://[::1]:8080/' }).articleUrl).toBe('http://[::1]:8080/');
+  expect(prepareWalkthrough(model, { ...manifest, articleUrl: 'http://localhost:8080/' }).articleUrl).toBe('http://localhost:8080/');
   const snapshot = prepareWalkthrough(model, manifest);
   expect(() => parseWalkthrough({ ...snapshot, model })).toThrow(/outside the publication projection/);
   expect(() => parseWalkthrough({ ...snapshot, model: { ...snapshot.model, icons: [] } })).toThrow(/referenced icons/);

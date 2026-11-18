@@ -66,6 +66,7 @@ try {
     assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H2');
     await page.click('[data-step="after-the-order"]');
     await page.waitForSelector(focus('outbox'));
+    await page.waitForFunction(() => document.activeElement?.tagName === 'H2');
     await page.goBack();
     await page.waitForSelector(focus('payments'));
     await page.goForward();
@@ -87,6 +88,24 @@ try {
     assert.equal(await approvedFrame.$eval(stage, (element) => element.dispatchEvent(new WheelEvent('wheel', {
       bubbles: true, cancelable: true, deltaY: 10
     }))), true, 'ordinary scrolling is not captured by the diagram');
+    const articleHistory = await page.evaluate(() => history.length);
+    await approvedFrame.click('[data-step="after-the-order"]');
+    await approvedFrame.waitForSelector(focus('outbox'));
+    assert.equal(await page.evaluate(() => history.length), articleHistory, 'embed steps leave article history alone');
+    assert.equal(await approvedFrame.$eval('.walkthrough-links a:first-child', (element) => (element as HTMLAnchorElement).href),
+      `${readerOrigin}${path}?step=after-the-order`);
+    await page.setViewport({ width: 920, height: 610 });
+    await page.$eval('iframe', (frame) => { frame.height = '450'; });
+    await approvedFrame.click('[data-step="charge-once"]');
+    await approvedFrame.waitForSelector(focus('payments'));
+    const previousZoom = await approvedFrame.$eval(stage, (element) => Number(element.getAttribute('data-zoom')));
+    await approvedFrame.click('[aria-label="Zoom in"]');
+    await approvedFrame.waitForFunction((selector, previous) => Number(document.querySelector(selector)?.getAttribute('data-zoom')) > previous, {}, stage, previousZoom);
+    const zoomed = await approvedFrame.$eval(stage, (element) => element.getAttribute('data-zoom'));
+    await approvedFrame.select(picker, 'keys');
+    await approvedFrame.waitForSelector(focus('keys'));
+    assert.equal(await approvedFrame.$eval(stage, (element) => element.getAttribute('data-zoom')), zoomed,
+      'component notes do not re-fit the canvas in a short iframe');
     await page.goto(other.url.href);
     const blockedFrame = await (await page.waitForSelector('iframe'))?.contentFrame();
     assert.ok(blockedFrame);

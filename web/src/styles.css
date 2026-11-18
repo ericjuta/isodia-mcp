@@ -1297,9 +1297,10 @@ span.title {
   }
 }
 
-@media (min-width: 621px) and (min-height: 480px) {
+@media (min-width: 621px) {
   .walkthrough {
     height: 100%;
+    min-height: 320px;
   }
 
   .walkthrough-steps {

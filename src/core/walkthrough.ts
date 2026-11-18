@@ -9,9 +9,9 @@ export const WALKTHROUGH_MAX_BYTES = 5 * 1024 * 1024;
 const articleUrl = z.string().trim().max(2000).transform((value, ctx) => {
   try {
     const url = new URL(value);
-    const local = url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    const local = url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
     // The canonical host is emitted into frame-ancestors, so refuse CSP separators as well.
-    const safeHost = /^(?:[a-z0-9.-]+|\[[a-f0-9:.]+\])$/.test(url.hostname);
+    const safeHost = /^[a-z0-9.-]+$/.test(url.hostname);
     if ((url.protocol === 'https:' || local) && safeHost && !url.username && !url.password && url.href.length <= 2000) {
       return url.href;
     }

@@ -10,11 +10,14 @@ const stepUrl = (path: string, step: string) => `${path}?${new URLSearchParams({
 
 type Step = Walkthrough['steps'][number];
 
-function StepReader({ story, step }: { story: Walkthrough; step: Step }) {
+function StepReader({ story, step, focusOnEntry }: { story: Walkthrough; step: Step; focusOnEntry: boolean }) {
   const [viewId, setViewId] = useState(step.view);
   const [component, setComponent] = useState<string | null>(step.component ?? null);
   const [reset, setReset] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (focusOnEntry) heading.current?.focus({ preventScroll: true });
+  }, [focusOnEntry]);
   const model = story.model;
   const view = model.views.find((candidate) => candidate.id === viewId)!;
   const items = useMemo(() => {
@@ -79,7 +82,7 @@ function StepReader({ story, step }: { story: Walkthrough; step: Step }) {
 export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
   const [story, setStory] = useState<Walkthrough | null>(null);
   const [failed, setFailed] = useState(false);
-  const [wanted, setWanted] = useState(stepFromLocation);
+  const [{ wanted, focusOnEntry }, setNavigation] = useState(() => ({ wanted: stepFromLocation(), focusOnEntry: false }));
   const base = `/w/${encodeURIComponent(id)}`;
   const path = embed ? `${base}/embed` : base;
 
@@ -101,7 +104,7 @@ export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
   }, [id]);
 
   useEffect(() => {
-    const restore = () => setWanted(stepFromLocation());
+    const restore = () => setNavigation({ wanted: stepFromLocation(), focusOnEntry: true });
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
   }, []);
@@ -119,8 +122,12 @@ export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     const href = stepUrl(path, to);
-    if (href !== window.location.pathname + window.location.search) window.history.pushState(null, '', href);
-    setWanted(to);
+    if (href !== window.location.pathname + window.location.search) {
+      // An iframe shares the containing tab's history. Do not put steps in the article's Back stack.
+      if (embed) window.history.replaceState(null, '', href);
+      else window.history.pushState(null, '', href);
+    }
+    setNavigation({ wanted: to, focusOnEntry: true });
   };
 
   return (
@@ -130,7 +137,7 @@ export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
         <h1>{story.title}</h1>
         <div className="walkthrough-links">
           {embed && <a className="link" href={stepUrl(base, step.id)} target="_blank" rel="noopener noreferrer">Open full page</a>}
-          <a className="link" href={story.articleUrl} target={embed ? '_blank' : undefined} rel="noopener noreferrer">Back to article</a>
+          <a className="link" href={story.articleUrl} target={embed ? '_top' : undefined} rel="noopener noreferrer">Back to article</a>
         </div>
       </header>
       <nav className="walkthrough-steps" aria-label="Walkthrough steps">
@@ -143,7 +150,7 @@ export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
         ))}</ol>
       </nav>
       {wanted !== null && !requested && <p className="walkthrough-fallback" role="status">That step is not available. Showing the first step.</p>}
-      <StepReader key={step.id} story={story} step={step} />
+      <StepReader key={step.id} story={story} step={step} focusOnEntry={focusOnEntry} />
     </main>
   );
 }

@@ -266,7 +266,8 @@ drawing of the view, placed in the page, with editing on top.
   unchanged; Return to step restores its view and focus. In a narrow iframe the rail and canvas
   stack instead of shrinking the diagram underneath controls. In the reader, a click on a
   component’s artwork or label selects it, and a drag only pans. An unmodified
-  wheel scrolls the reader instead of trapping the article in the canvas.
+  wheel scrolls the reader instead of trapping the article in the canvas. The active step
+  updates the iframe link without adding entries to the article’s Back history.
 
 ## The picture
 

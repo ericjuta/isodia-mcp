@@ -184,8 +184,9 @@ With `ISODIA_URL=https://diagrams.example.com`, the publication has three addres
 | `https://diagrams.example.com/w/checkout-architecture-v1/embed?step=charge-once` | Compact reader for an iframe in the article |
 | `https://diagrams.example.com/api/walkthroughs/checkout-architecture-v1` | The publication JSON |
 
-Without `?step=` the reader opens the first step. Back and Forward move between the steps a reader
-visited. A step name the publication does not have opens a notice with a way into the
+Without `?step=` the reader opens the first step. On the full page, Back and Forward move between
+the steps a reader visited. The embed keeps only its current step so it leaves the article’s Back
+button alone. A step name the publication does not have opens a notice with a way into the
 walkthrough, not an empty diagram — which is what an old link gets after a step is renamed, so
 don't rename them.
 
@@ -207,7 +208,9 @@ e-mail digests and some privacy settings drop iframes; the link is what those re
 ```
 
 Use the `/embed` address in iframes: the full page refuses to be framed. The embed shows a link to
-open the current step full page and a link back to `articleUrl`.
+open the current step in a new tab and a link that returns the current tab to `articleUrl`. If
+your site requires iframe sandboxing, allow scripts, same-origin requests, popups and top-level
+navigation by user activation so those controls work.
 
 ### Which pages may embed it
 
@@ -222,7 +225,7 @@ still work everywhere. If the article moves to another origin, publish a new ver
 
 Because only the article's origin may frame the embed, an iframe on a local test page needs a
 preview publication whose `articleUrl` is that local page. Plain `http://` is accepted only for a
-loopback host — `localhost`, `127.0.0.1` or `[::1]` — never for a host on the network. The
+loopback host — `localhost` or `127.0.0.1` — never for a host on the network. The
 browser compares origins exactly, so `http://localhost:8000` and `http://127.0.0.1:8000` are
 different, and so are different ports: open the test page at exactly the origin in the manifest.
 

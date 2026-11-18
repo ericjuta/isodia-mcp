@@ -14,7 +14,7 @@ Let readers follow the argument in an article and inspect the infrastructure wit
 
 ## Plan of work
 
-1. Add `/w/<publication>?step=<step>` and `/w/<publication>/embed?step=<step>`. Step links have real hrefs and browser Back and Forward work. An unknown step gives a clear fallback rather than a blank diagram.
+1. Add `/w/<publication>?step=<step>` and `/w/<publication>/embed?step=<step>`. Step links have real hrefs. Back and Forward work on the full page; inside an iframe, the active step replaces its URL so the article keeps its own history. An unknown step gives a clear fallback rather than a blank diagram.
 2. Use the existing canvas for pan, zoom, and component clicks. Draw the guided focus with the accent outline. Show step prose separately from component notes. Let visitors choose other published views and components, including via a keyboard-operable component picker; keep the current step and make returning explicit.
 3. Keep iframe chrome compact. Show an open-full-page link for the current step and a return-to-article link. Use the same responsive layout and verify a narrow viewport. Document design and terminology in `DESIGN.md`.
 4. Provide a synthetic architecture and three real steps plus copyable iframe/link instructions. Browser proof must cover direct links, history, clicking canvas and keyboard controls, switching views and returning, iframe actually running from the permitted origin, blocked other origin, and no editing controls.
