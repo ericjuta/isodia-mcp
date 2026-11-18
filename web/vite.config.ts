@@ -1,8 +1,9 @@
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { apiPort, devWebPort } from '../src/server/config.ts';
 
-const server = 'http://localhost:4400';
+const server = `http://localhost:${apiPort(process.env)}`;
 
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
@@ -12,7 +13,8 @@ export default defineConfig({
     emptyOutDir: true
   },
   server: {
-    port: 4401,
+    port: devWebPort(process.env),
+    strictPort: true,
     proxy: { '/api': server, '/mcp': server }
   }
 });

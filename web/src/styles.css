@@ -418,6 +418,10 @@ span.title {
   cursor: grabbing;
 }
 
+.tool-read .stage-svg:not(:active) [data-item] {
+  cursor: pointer;
+}
+
 .tool-connect .stage-svg,
 .tool-region .stage-svg,
 .tool-text .stage-svg {
@@ -1216,10 +1220,6 @@ span.title {
 
 .walkthrough-canvas {
   min-height: 320px;
-}
-
-.walkthrough-canvas [data-item] {
-  cursor: pointer;
 }
 
 .walkthrough-rail {

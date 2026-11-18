@@ -6,6 +6,14 @@ canvas, revision history and share links, over one model.
 **New here? [Start from a fresh checkout](docs/getting-started.md).** Run the editor, explore
 a sample diagram, and preview a three-step article walkthrough.
 
+| I want to… | Start here |
+| --- | --- |
+| Open a diagram someone sent me | [Read a diagram](docs/using-isodia.md#read-a-diagram) |
+| Draw, export, or share a diagram | [Editor and sharing guide](docs/using-isodia.md) |
+| Link to or embed a walkthrough in an article | [Publication checklist](docs/walkthroughs.md#publication-checklist) |
+| Host Isodia for other people | [Operator checklist](docs/operating-isodia.md) |
+| Draw with an agent | [Connect an agent and draw a first diagram](#connect-an-agent) |
+
 ![An agent builds a diagram region by region in an open browser canvas; a person zooms in, drags an item and searches the icons; the agent adds a connector, a second view and a share link; the history lists every step; the shared page shows the result read-only](docs/sample/demo.gif)
 
 *Unedited apart from the caption and pointer. The agent is a real MCP client calling
@@ -32,13 +40,20 @@ same renderer that exports the pictures.
 
 ## Quick start
 
+Install [Bun](https://bun.com/docs/installation) and [Node.js](https://nodejs.org/en/download) 22.12 or newer. In one terminal, install dependencies and start the API:
+
 ```bash
-bun install
-bun start          # API + MCP over HTTP on :4400
-bun run dev:web    # web app on :4401, proxying /api and /mcp to :4400
+bun install --frozen-lockfile
+bun run dev:api
 ```
 
-Open http://localhost:4401. Create a project, or let an agent do it (below).
+Leave it running on port `4400`. In a second terminal, start the editor:
+
+```bash
+bun run dev:web
+```
+
+Open <http://localhost:4401>. To use other ports, see [Use different local ports](docs/getting-started.md#use-different-local-ports).
 
 For a single-origin deployment, build the web app once and let the API serve it:
 
@@ -58,8 +73,8 @@ docker run -p 4400:4400 -v isodia-data:/data \
   -e ISODIA_URL=https://diagrams.example.com isodia-mcp
 ```
 
-`ISODIA_URL` is the address clients reach, and it is what the Connect-agent panel and share
-links print — set it to the public URL, not localhost. Projects live in `/data/isodia.db`, so
+Set `ISODIA_URL` to the address clients reach, not localhost. MCP uses this address in its
+editor and share links. Projects live in `/data/isodia.db`, so
 mount a volume or they are lost with the container; the image runs as the unprivileged `bun` user
 and the volume is created with the right ownership. The image listens on all interfaces
 (`HOST=0.0.0.0`), so it refuses to start without `ISODIA_TOKEN`, the bearer token the API and
@@ -72,34 +87,40 @@ check a model and render a picture.
 
 ## Connect an agent
 
-The built-in panel (**Agent** on a project page) prints both configurations.
+MCP lets an agent call Isodia's diagram tools. Choose **one** connection method. The editor's **Agent** panel shows both configurations. Use your MCP client's settings to add a server. The examples below use a common JSON format. Your client may use different keys or a settings form.
 
-**stdio**, on the same machine — nothing to host:
+**stdio**, for a client on the same machine. The client starts its own Isodia process:
 
 ```json
 {
   "mcpServers": {
     "isodia": {
       "command": "bun",
-      "args": ["/absolute/path/to/isodia-mcp/src/server/mcp-stdio.ts"]
+      "args": ["/absolute/path/to/isodia-mcp/src/server/mcp-stdio.ts"],
+      "env": { "ISODIA_URL": "http://localhost:4401" }
     }
   }
 }
 ```
 
-**HTTP**, when the server is reachable over the network:
+Replace the script path with the absolute path to your checkout. Set `ISODIA_URL` to the origin where you open the editor. If the web instance uses a custom `ISODIA_DB`, add the same absolute database path to `env`. Set these in the client configuration so they reach the process even if the client filters your shell environment. The stdio process can draw without a web server, but its browser links need the editor to be running.
+
+**HTTP**, for a running server. This is the direct MCP endpoint for the default dev API:
 
 ```json
 { "mcpServers": { "isodia": { "type": "http", "url": "http://localhost:4400/mcp" } } }
 ```
 
-Both processes share one SQLite file (`ISODIA_DB`), so an agent over stdio and the web app
-see the same projects. The default path is resolved from the repository, not the working
-directory, so both find the same file however they are started.
+In development the **Agent** panel may show `http://localhost:4401/mcp`. Vite forwards that endpoint to the same API. For a hosted instance, use its reachable HTTPS URL with `/mcp`. If the server requires `ISODIA_TOKEN`, configure your HTTP client to send it as an `Authorization: Bearer` header.
 
-Some MCP clients start stdio servers with a filtered environment. If you change
-`ISODIA_DB`, set it explicitly in the server's `env` block as well, or the server falls back
-to the default and appears empty.
+### First diagram with an agent
+
+- [ ] Connect the client and check that it lists Isodia tools. Ask it to run `list_projects` to check the connection. An empty list is normal for a fresh database.
+- [ ] Ask the agent to make a test diagram. For example: “Create a project named Event processing. Show Collector → Buffer → Processor. Add a note on why the buffer is there. Give me a PNG and an editor link.”
+- [ ] Check that the agent uses `create_project` and `build_diagram`. Open the link returned by `build_diagram` and check the view, both connections, and the Buffer note.
+- [ ] Have the agent run `render_diagram` with `format: "png"`. [Inspect the image](docs/using-isodia.md#inspect-a-render-before-sending-it) before calling it done.
+
+If the link opens the API port and returns `503`, check that the server uses `bun run dev:api`, or set `ISODIA_URL` to the editor's origin. For stdio, make that change in the client configuration. Reconnect the client and ask for a new link with `list_projects`.
 
 ### Tools
 
@@ -116,8 +137,7 @@ to the default and appears empty.
 | `share_project` | Create, list and revoke read-only share links |
 | `export_project`, `import_project` | Model JSON (Isoflow format) in and out |
 
-`render_diagram` returning a real image is what lets an agent check its own layout instead of
-guessing.
+`render_diagram` returns a picture an agent can inspect if its client supports images. If not, a person can download and open the PNG in the editor's **Export** panel.
 
 Revision history keeps the newest 100 revisions, the original import and any revision named with
 `save_checkpoint`; older unnamed autosaves are pruned so storage stays bounded. Each revision is a
@@ -147,15 +167,11 @@ more **views** that place those items on a tile grid. So "the same systems, for 
 audience" is a second view, not a second diagram.
 
 `build_diagram` lays out a graph: edges flow from the upper left toward the lower right, each
-group becomes a titled coloured region sized to hold its title, and regions never overlap. A
-region's title sits on its own row inside its upper edge, so it never collides with the icon
-artwork or labels of the items below. `edit_diagram` changes the layout surgically and leaves
-everything else where it is.
+group becomes a titled coloured region. The layout reserves a row for the title. This does not
+prevent every overlap, especially after you move items. Use `edit_diagram` for local changes.
 
-Connector labels are placed on the route, not on the nearest tile: the renderer picks a free
-tile with the most clearance from every item, closest to the middle of the route. A label on an
-item's tile would vanish behind the icon, because items paint last, and two labels on one tile
-would hide each other.
+The renderer places connector labels along their routes and looks for open space around them.
+Short or crowded routes can still leave labels partly hidden. [Inspect the render](docs/using-isodia.md#inspect-a-render-before-sending-it) after automatic layout and after edits.
 
 Every change is checked against the model schema (`src/core/schema.ts`) before it is stored:
 whole-number tiles, unique ids, and every reference to an item, icon, colour or anchor resolved.

@@ -237,9 +237,11 @@ drawing of the view, placed in the page, with editing on top.
 - **One vocabulary of change.** Every control applies the same operations an agent sends over
   MCP (`move_item`, `connect`, `update_region`…). A person and an agent cannot produce
   different kinds of diagram, and a refusal reads the same to both.
-- **Presses resolve to tiles, then to things.** A press finds its tile and then what stands
-  there: item, then text, then connector, then the smallest region. A tall icon or a label
-  never steals a press meant for the thing behind it.
+- **A visible component is a target.** In Select, Connect and read-only views, an icon or
+  its label points to the component that draws it. Otherwise a press resolves to the
+  ground tile: item, then text, then connector, then the smallest region. The Text and
+  Region tools always use the ground tile. In read-only views a click selects, but a drag
+  pans without changing selection.
 - **Tools are words**, in one bar: `Select`, `Connect`, `Region`, `Text`, then `Add item`,
   `Undo`, `Redo`, `Tidy`. While a tool other than Select is armed, one line under the bar
   says what the next click does. A tool disarms after one use.
@@ -286,8 +288,9 @@ size it is read at, which is small.
   strongest text in the picture because they name the things.
 - **Connector labels** are white pills in soft ink. The pill shape is the distinction: a
   rounded rectangle is a thing, a pill is something that travels.
-- **Label placement** is on the route, on a free tile with the most clearance from every item,
-  nearest the middle. Two labels never share a tile.
+- **Label placement** is on the route. Prefer a tile without a label, away from text, with
+  room around neighbouring items. Tight routes can still produce overlaps. Inspect the export
+  at the reader's size.
 
 Default export width is 1400 px; the worked examples use 1600. Natural canvases run from
 about 2,300 to 3,600 px wide, so a 22 px label lands between 10 and 15 px in a 1600 px file.
@@ -390,3 +393,4 @@ serves. If the answer is "it looks nicer", it does not go in.
 | 2026-11-11 | Named isodia (repository `isodia-mcp`); wordmark, MCP server name and `ISODIA_*` settings follow | The old name borrowed two other projects' names. A product gets one name of its own, used everywhere, with no aliases for the old one |
 | 2026-11-18 | Published walkthroughs get a reader rail and the same paper canvas | Keep narrative and notes distinct, and let a reader explore without losing the article’s stable step |
 | 2026-11-18 | Record actual icon width and title-routing behavior | The icon rendering scale and route avoidance already changed; the documented dimensions and debt now match |
+| 2026-11-18 | Select and Connect recognize icons and labels as well as base tiles | The editor, live share and walkthrough agree on what a visible component click means |

@@ -45,8 +45,8 @@ relying on it.
 
 ## The canvas, worth knowing
 
-- Presses resolve to a tile first, then to what stands there (item, text, connector, smallest
-  region). Dragging works from anywhere on an item's tile.
+- In Select, Connect and read-only views, presses on a component icon or label resolve to that
+  component. Otherwise the ground tile decides (item, text, connector, smallest region).
 - Every canvas edit is one of the MCP operations, applied in the browser and saved as a model.
   A refused edit (a taken tile) shows the same message an agent would get.
 - A change arriving from elsewhere replaces what the canvas holds and clears its undo history.
@@ -59,6 +59,7 @@ relying on it.
     bun run build                                       # vite
     bun scripts/seed-demo.ts && bun scripts/browser-check.ts   # needs a running server and CHROME_PATH;
                                                         # set ISODIA_TOKEN when the server requires one
+    CHROME_PATH=/path/to/chrome bun scripts/onboarding-browser-check.ts  # scratch dev services; no build needed
     bun scripts/icon-sheet.ts --out sheet.png           # look at it after any icon change
 
 `tsc` alone is not sufficient for `scripts/`: it accepts a duplicate `const` that Bun refuses to run,

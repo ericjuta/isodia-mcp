@@ -18,13 +18,22 @@ export interface Config {
   walkthroughsRoot?: string;
 }
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
-  const port = Number(env.PORT ?? 4400);
+export function apiPort(env: NodeJS.ProcessEnv): number {
+  return Number(env.PORT ?? 4400);
+}
+
+export function devWebPort(env: NodeJS.ProcessEnv): number {
+  return Number(env.ISODIA_WEB_PORT ?? 4401);
+}
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env, development = false): Config {
+  const port = apiPort(env);
+  const webPort = development ? devWebPort(env) : port;
   return {
     host: env.HOST || '127.0.0.1',
     port,
     databasePath: env.ISODIA_DB ?? join(import.meta.dir, '../../data/isodia.db'),
-    publicUrl: (env.ISODIA_URL ?? `http://localhost:${port}`).replace(/\/+$/, ''),
+    publicUrl: (env.ISODIA_URL ?? `http://localhost:${webPort}`).replace(/\/+$/, ''),
     token: env.ISODIA_TOKEN || undefined,
     walkthroughsRoot: env.ISODIA_WALKTHROUGHS_DIR || undefined
   };
