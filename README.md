@@ -3,6 +3,9 @@
 Isometric architecture diagrams that agents and people draw together: an MCP server, a browser
 canvas, revision history and share links, over one model.
 
+**New here? [Start from a fresh checkout](docs/getting-started.md).** Run the editor, explore
+a sample diagram, and preview a three-step article walkthrough.
+
 ![An agent builds a diagram region by region in an open browser canvas; a person zooms in, drags an item and searches the icons; the agent adds a connector, a second view and a share link; the history lists every step; the shared page shows the result read-only](docs/sample/demo.gif)
 
 *Unedited apart from the caption and pointer. The agent is a real MCP client calling
