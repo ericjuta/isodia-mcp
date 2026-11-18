@@ -9,6 +9,7 @@ const store = new Store(config.databasePath);
 const app = createApp(store, {
   publicUrl: config.publicUrl,
   token: config.token,
+  walkthroughsRoot: config.walkthroughsRoot,
   webRoot: join(import.meta.dir, '../../dist')
 });
 
