@@ -207,7 +207,7 @@ projection as the tiles, so an icon's footprint sits exactly on its diamond.
 | Left face | `#ece9e0` |
 | Right face | `#d9d5ca` |
 | Outline and details | ink `#1b1d22`, round joins; secondary details ink at 45% |
-| Outline weight | 2.5 px at drawn size (an icon is drawn 113 px wide), details 2 px |
+| Outline weight | About 3 px at drawn size (an icon is drawn about 134 px wide), details about 2.4 px |
 
 - **No hue.** A coloured icon competes with the region it stands in and says nothing: which
   blue is "database"? Three paper tones and one ink are enough to tell forty things apart.
@@ -259,6 +259,12 @@ drawing of the view, placed in the page, with editing on top.
   discard their work. The revision history is the undo that spans people.
 - **Read-only is the same canvas** without the grid, the bar and the fields. Clicking an item
   still answers "what is this?" with its name and notes.
+- **A published walkthrough is read-only and fixed in time.** A step is a narrative stop on a
+  view, optionally focused on one component. The left reader rail separates step prose from
+  component notes and replaces the floating inspector. It offers the same component selection
+  by keyboard as a click on the canvas. Exploring a view or component leaves the step link
+  unchanged; Return to step restores its view and focus. In a narrow iframe the rail and canvas
+  stack instead of shrinking the diagram underneath controls.
 
 ## The picture
 
@@ -317,8 +323,8 @@ Known, not fixed. Listed so nobody rediscovers them or mistakes them for intent.
 - **Control borders are 1.5:1.** Controls are identified by their white fill on paper and
   their label, not the border. Accepted for buttons; weakest on empty text fields.
 - **The canvas needs a pointer.** Tools, fields and dialogs work from the keyboard, but
-  selecting and moving things on the canvas does not. An agent or the API is the keyboard
-  path today.
+  selecting and moving things directly on the canvas does not. The walkthrough component picker
+  is the keyboard counterpart to clicking a component; edits still need a pointer or the API.
 - **Touch pans and edits but cannot pinch-zoom.** Zoom on a touch screen is the `+` and `−`
   buttons.
 - **One thing is selected at a time.** There is no marquee and no shift-click, so moving
@@ -330,8 +336,8 @@ Known, not fixed. Listed so nobody rediscovers them or mistakes them for intent.
 - **Region titles are 60 px type on the tile plane**, large beside 22 px item labels. The size
   is stored per title, and layout reserves space from it, so changing the default is a
   layout change, not a style one.
-- **Lines still cross region titles.** The halo keeps the title legible; the real fix is
-  routing in `src/core/layout.ts`.
+- **A line may cross a region title that spans its only entry edge.** Routing in
+  `src/core/path.ts` avoids text tiles unless the line is walled in; the halo keeps the title legible.
 - **A connector pill can slide partly under a neighbouring icon** when items sit three tiles
   apart. It is a spacing question, not a type one.
 - **Text width is estimated**, about 5 to 10% wide for Plex. Boxes are slightly generous and
@@ -379,3 +385,5 @@ serves. If the answer is "it looks nicer", it does not go in.
 | 2026-11-11 | Selection drawn in the accent | Selection is "where you are", which is one of the three things the accent means |
 | 2026-11-11 | Removing a region removes its title; `update_region` sets it | The title was a loose text box that outlived its region and could not be changed through it |
 | 2026-11-11 | Named isodia (repository `isodia-mcp`); wordmark, MCP server name and `ISODIA_*` settings follow | The old name borrowed two other projects' names. A product gets one name of its own, used everywhere, with no aliases for the old one |
+| 2026-11-18 | Published walkthroughs get a reader rail and the same paper canvas | Keep narrative and notes distinct, and let a reader explore without losing the article’s stable step |
+| 2026-11-18 | Record actual icon width and title-routing behavior | The icon rendering scale and route avoidance already changed; the documented dimensions and debt now match |

@@ -22,6 +22,8 @@ interface Props {
   editable: boolean;
   /** Receives the model after every edit made here. */
   onChange?: (model: Model) => void;
+  /** In the walkthrough reader, the rail owns selection and displays component notes. */
+  readerSelection?: { component: string | null; onSelect: (component: string | null) => void };
 }
 
 interface Camera {
@@ -31,7 +33,7 @@ interface Camera {
 }
 
 type Gesture =
-  | { kind: 'pan'; startX: number; startY: number; camera: Camera; moved: boolean; clears: boolean }
+  | { kind: 'pan'; startX: number; startY: number; camera: Camera; moved: boolean; clears: boolean; readerHit?: string | null }
   | { kind: 'move'; target: Target; from: Coords; origin: Coords }
   | { kind: 'resize'; region: string; fixed: Coords }
   | { kind: 'draw'; from: Coords };
@@ -72,7 +74,7 @@ function Layer({ parts, kind }: { parts: ScenePart[]; kind: string }) {
  * code that exports pictures and edits with the same operations agents send, so there is one
  * definition of what a diagram looks like and one of how it changes.
  */
-export default function Diagram({ shown, editable, onChange }: Props) {
+export default function Diagram({ shown, editable, onChange, readerSelection }: Props) {
   const [model, setModel] = useState(shown.model);
   /** An edit in progress (a drag, a field being typed in): drawn, not yet recorded. */
   const [draft, setDraftState] = useState<Model | null>(null);
@@ -107,7 +109,10 @@ export default function Diagram({ shown, editable, onChange }: Props) {
 
   const current = draft ?? model;
   const view = viewOf(current, shown.view);
-  const selected = selection && exists(view, selection) ? selection : null;
+  const target: Target | null = readerSelection
+    ? readerSelection.component === null ? null : { kind: 'item', id: readerSelection.component }
+    : selection;
+  const selected = target && exists(view, target) ? target : null;
   const scene = useMemo(() => renderScene(current, view), [current, view]);
 
   const flash = useCallback((text: string) => {
@@ -116,12 +121,14 @@ export default function Diagram({ shown, editable, onChange }: Props) {
     messageTimer.current = window.setTimeout(() => setMessage(null), 3500);
   }, []);
 
+  const compactFit = readerSelection !== undefined;
   const fit = useCallback(() => {
     const box = stage.current?.getBoundingClientRect();
     if (!box || box.width === 0) return;
     const { bounds } = renderScene(committed.current, viewOf(committed.current, shown.view));
+    const margin = compactFit ? Math.min(36, box.width / 12, box.height / 12) : FIT_MARGIN;
     const zoom = clamp(
-      Math.min((box.width - FIT_MARGIN * 2) / (bounds.maxX - bounds.minX), (box.height - FIT_MARGIN * 2) / (bounds.maxY - bounds.minY)),
+      Math.min((box.width - margin * 2) / (bounds.maxX - bounds.minX), (box.height - margin * 2) / (bounds.maxY - bounds.minY)),
       MIN_ZOOM,
       1
     );
@@ -130,7 +137,7 @@ export default function Diagram({ shown, editable, onChange }: Props) {
       x: box.width / 2 - (zoom * (bounds.minX + bounds.maxX)) / 2,
       y: box.height / 2 - (zoom * (bounds.minY + bounds.maxY)) / 2
     });
-  }, [shown.view]);
+  }, [shown.view, compactFit]);
 
   // New content from outside (first load, another view, a change made elsewhere) replaces
   // everything held here, including the undo history: undoing across it would silently discard
@@ -153,12 +160,13 @@ export default function Diagram({ shown, editable, onChange }: Props) {
   useEffect(() => {
     const element = stage.current;
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) =>
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
-    );
+    const observer = new ResizeObserver(([entry]) => {
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      if (compactFit) fit();
+    });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [compactFit, fit]);
 
   /** Record a new model as one undoable step and report it. */
   const record = useCallback(
@@ -322,8 +330,8 @@ export default function Diagram({ shown, editable, onChange }: Props) {
   };
 
   /** Begin panning. With `clears`, a press released without moving drops the selection. */
-  const startPan = (event: ReactPointerEvent, clears: boolean): void => {
-    gesture.current = { kind: 'pan', startX: event.clientX, startY: event.clientY, camera: cameraRef.current, moved: false, clears };
+  const startPan = (event: ReactPointerEvent, clears: boolean, readerHit?: string | null): void => {
+    gesture.current = { kind: 'pan', startX: event.clientX, startY: event.clientY, camera: cameraRef.current, moved: false, clears, readerHit };
   };
 
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
@@ -340,6 +348,7 @@ export default function Diagram({ shown, editable, onChange }: Props) {
     if (event.button === 1) return startPan(event, false);
 
     if (!editable) {
+      if (readerSelection) return startPan(event, false, target?.kind === 'item' ? target.id : null);
       setSelection(target?.kind === 'item' ? target : null);
       return startPan(event, false);
     }
@@ -438,6 +447,7 @@ export default function Diagram({ shown, editable, onChange }: Props) {
     if (!active) return;
     if (active.kind === 'pan') {
       if (!active.moved && active.clears) setSelection(null);
+      if (!active.moved && active.readerHit !== undefined) readerSelection?.onSelect(active.readerHit);
     } else if (active.kind === 'draw') {
       const to = tileUnder(event);
       setDrawing(null);
@@ -561,7 +571,7 @@ export default function Diagram({ shown, editable, onChange }: Props) {
           <Layer parts={scene.items} kind="item" />
           <g className="overlay">
             {editable && hover && !gesture.current && <polygon className="hover" points={outline(hover.x, hover.x, hover.y, hover.y)} />}
-            {selectedOutline && <polygon className="selected" points={selectedOutline} />}
+            {selectedOutline && <polygon className="selected" points={selectedOutline} data-focus={readerSelection ? selected?.id : undefined} />}
             {selectedPath && <polyline className="selected line" points={selectedPath} />}
             {handles.map((at, index) => (
               <circle key={index} className="handle" cx={at.x} cy={at.y} r={9 / camera.zoom} />
@@ -620,7 +630,7 @@ export default function Diagram({ shown, editable, onChange }: Props) {
           onClose={() => setPicker(null)}
         />
       )}
-      {selected && (
+      {selected && !readerSelection && (
         <Inspector
           key={`${selected.kind}:${selected.id}:${epoch}`}
           model={current}

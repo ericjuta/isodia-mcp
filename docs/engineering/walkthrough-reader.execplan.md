@@ -9,7 +9,7 @@ Let readers follow the argument in an article and inspect the infrastructure wit
 ## Progress
 
 - [x] Trace the read-only canvas, item selection and inspector; share page currently has no step or history URL.
-- [ ] Implement the reader, compact iframe, focus, accessible component controls and article backlink.
+- [x] Implement the reader, compact iframe, focus, accessible component controls and article backlink.
 - [ ] Supply the three-step sample, run focused and browser verification, and land.
 
 ## Plan of work
@@ -26,4 +26,4 @@ Let readers follow the argument in an article and inspect the infrastructure wit
 
 ## Evidence and outcomes
 
-Pending implementation and proof.
+Reader implementation typechecks. Browser proof and merge are pending.

@@ -1154,3 +1154,161 @@ span.title {
   color: var(--ink-3);
   font-size: 12px;
 }
+
+/* Walkthrough: a reader's rail, not tools floating over the diagram. */
+.walkthrough {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  overflow-wrap: anywhere;
+}
+
+.walkthrough-header,
+.walkthrough-steps {
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.walkthrough-header,
+.walkthrough-links,
+.walkthrough-steps ol,
+.walkthrough-views {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.walkthrough-header h1 {
+  flex: 1 1 160px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.walkthrough-links,
+.walkthrough-steps {
+  font-size: 13px;
+}
+
+.walkthrough-steps ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.walkthrough-steps [aria-current='step'] {
+  font-weight: 600;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+}
+
+.walkthrough-fallback {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.walkthrough-workspace {
+  display: grid;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+  flex: 1;
+}
+
+.walkthrough-canvas {
+  min-height: 320px;
+}
+
+.walkthrough-rail {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+
+.walkthrough-section {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.walkthrough-section h2 {
+  font-size: 17px;
+}
+
+.walkthrough-section h3 {
+  font-size: 14px;
+}
+
+.walkthrough-prose {
+  white-space: pre-wrap;
+}
+
+.walkthrough-views {
+  gap: 6px;
+}
+
+.walkthrough-views .btn {
+  white-space: normal;
+  min-height: 30px;
+  height: auto;
+  padding-block: 6px;
+  text-align: left;
+}
+
+.walkthrough-views [aria-pressed='true'] {
+  border-bottom: 2px solid var(--accent);
+}
+
+.walkthrough-component {
+  width: 100%;
+  font-weight: 500;
+}
+
+.walkthrough-component .field {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.walkthrough-details {
+  color: var(--ink-2);
+}
+
+.walkthrough-details h3 {
+  color: var(--ink);
+}
+
+@media (max-width: 620px) {
+  .walkthrough-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(300px, 55vh);
+  }
+
+  .walkthrough-rail {
+    border-right: 0;
+  }
+
+  .walkthrough-canvas {
+    min-height: 0;
+  }
+}
+
+@media (min-width: 621px) and (min-height: 480px) {
+  .walkthrough {
+    height: 100%;
+  }
+
+  .walkthrough-steps {
+    max-height: min(28vh, 160px);
+    overflow: auto;
+  }
+
+  .walkthrough-workspace,
+  .walkthrough-canvas {
+    min-height: 0;
+  }
+
+  .walkthrough-rail {
+    overflow: auto;
+  }
+}
