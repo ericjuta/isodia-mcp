@@ -28,6 +28,7 @@ jobs:
       - name: Prove the first-use MCP and canvas flow in Chromium
         env:
           CHROME_PATH: /usr/bin/google-chrome
+          ISODIA_CHECK_TIMINGS: "1"
         run: bun scripts/onboarding-browser-check.ts
       - name: Prove the article embed in Chromium
         env:

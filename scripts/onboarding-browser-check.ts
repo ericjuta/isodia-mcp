@@ -90,18 +90,30 @@ try {
   assert.deepEqual(await json(stdio, 'list_projects'), await json(client, 'list_projects'));
   console.log('PASS: custom ports, HTTP MCP direct and proxied, and stdio links to the same project');
 
+  let phaseStart = performance.now();
+  function timing(phase: string) {
+    const now = performance.now();
+    if (process.env.ISODIA_CHECK_TIMINGS === '1') {
+      console.log(`TIMING ${phase}: ${Math.round(now - phaseStart)} ms`);
+    }
+    phaseStart = now;
+  }
+
   const browser = await puppeteer.launch({ executablePath, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   try {
+    timing('Chromium launch');
     const page = await browser.newPage();
     page.setDefaultTimeout(8000);
     await page.setViewport({ width: 1200, height: 800 });
     assert.equal((await page.goto(built.url))?.status(), 200);
+    timing('editor navigation and page setup');
     const collectorIcon = '[data-item="collector"] image';
     const bufferLabel = '[data-item="buffer"] text';
     await page.waitForSelector(bufferLabel);
     await page.click(bufferLabel);
     await page.waitForFunction(() => document.querySelector<HTMLTextAreaElement>('.inspector textarea')?.value === 'Absorbs bursts.');
 
+    timing('label selection');
     await page.click('button[title="Click one item, then another (C)"]');
     await page.click(collectorIcon);
     await page.click(bufferLabel);
@@ -110,11 +122,13 @@ try {
       const state = await response.json();
       return state.model?.views[0].connectors?.length === 1;
     }, { polling: 200 }, id);
+    timing('connect and persist');
     const diagram = await json<{ connectors: { from: string; to: string }[] }>(client, 'get_diagram', { project: id });
     assert.deepEqual(diagram.connectors.map(({ from, to }) => [from, to]), [['collector', 'buffer']]);
     const png = (await call(client, 'render_diagram', { project: id, width: 800 })).content[0];
     assert.ok(png?.type === 'image' && png.mimeType === 'image/png');
     assert.equal(Buffer.from(png.data, 'base64').readUInt32BE(16), 800);
+    timing('read back and render PNG');
     console.log('PASS: returned editor link, label selection, icon-to-label connection, persisted model and PNG');
 
     const share = await json<{ url: string; token: string }>(client, 'share_project', { project: id, action: 'create' });
