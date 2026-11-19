@@ -141,7 +141,10 @@ no light weights, no letter-spacing except the two cases above.
 
 The app loads Latin woff2 files from `@fontsource`. PNG export bundles the TTFs from
 `@expo-google-fonts/ibm-plex-sans`, so a picture rendered in a container is byte-identical to
-one rendered on a laptop. System fonts remain as fallback for scripts Plex lacks.
+one rendered on a laptop. System fonts remain as fallback for scripts Plex lacks. The Cloudflare
+Worker renders with the same resvg release compiled to WebAssembly and the same three TTFs, so
+its Latin pictures are byte-identical too; it has no system fonts, so other scripts draw as
+missing glyphs there.
 
 ### Shape, space, depth
 
@@ -394,3 +397,4 @@ serves. If the answer is "it looks nicer", it does not go in.
 | 2026-11-18 | Published walkthroughs get a reader rail and the same paper canvas | Keep narrative and notes distinct, and let a reader explore without losing the article’s stable step |
 | 2026-11-18 | Record actual icon width and title-routing behavior | The icon rendering scale and route avoidance already changed; the documented dimensions and debt now match |
 | 2026-11-18 | Select and Connect recognize icons and labels as well as base tiles | The editor, live share and walkthrough agree on what a visible component click means |
+| 2026-11-19 | Worker PNGs use resvg WebAssembly with the same bundled Plex TTFs | Same picture on Cloudflare as on Bun for Latin text; a Worker has no system fonts to fall back on |

@@ -12,6 +12,7 @@ a sample diagram, and preview a three-step article walkthrough.
 | Draw, export, or share a diagram | [Editor and sharing guide](docs/using-isodia.md) |
 | Link to or embed a walkthrough in an article | [Publication checklist](docs/walkthroughs.md#publication-checklist) |
 | Host Isodia for other people | [Operator checklist](docs/operating-isodia.md) |
+| Run Isodia on Cloudflare without a server | [Cloudflare guide](docs/cloudflare.md) |
 | Draw with an agent | [Connect an agent and draw a first diagram](#connect-an-agent) |
 
 ### End-to-end demo
@@ -89,6 +90,13 @@ The base image must be glibc, because `@resvg/resvg-js` ships a prebuilt native 
 not run on musl; the provided image is Debian-based, and most of its size is the Bun base. The
 runtime stage installs production dependencies only, and the build fails unless that install can
 check a model and render a picture.
+
+### Cloudflare
+
+Isodia also runs as one Cloudflare Worker: the web app as static assets, and projects in one
+SQLite-backed Durable Object. There is no stdio MCP there, and pictures have no fallback fonts
+for scripts outside IBM Plex. See [`docs/cloudflare.md`](docs/cloudflare.md) for setup, deploys,
+data and rollback.
 
 ## Connect an agent
 
@@ -234,7 +242,8 @@ another tool, keeps the colours it was drawn with.
 
 ## Storage
 
-One SQLite file (WAL, so several processes can share it):
+One SQLite file (WAL, so several processes can share it). On Cloudflare the same tables live in
+the workspace Durable Object's SQLite database.
 
 - `projects` — the current model and a revision counter
 - `revisions` — every saved state, with what made it (`editor`, `mcp`, `api`, `import`, `restore`)
@@ -277,6 +286,8 @@ openable by a client without an account.
   inserted into the page. A model's own icons are images shown through SVG `<image>`, which
   does not run scripts.
 - The stdio MCP server has the same access as the user who starts it; it does not check the token.
+- **On Cloudflare, closed until configured.** The Worker answers `503` on the API and `/mcp`
+  until the `ISODIA_TOKEN` secret is set.
 
 Report vulnerabilities privately through the repository's security advisories, not public issues.
 
@@ -298,6 +309,7 @@ bun test                                      # unit and integration suites
 bun scripts/seed-demo.ts                       # rebuild the two demo projects the browser check drives
 export CHROME_PATH=/usr/bin/chromium           # any Chrome or Chromium binary
 bun scripts/browser-check.ts                  # browser smoke test; needs both dev servers
+bun scripts/worker-runtime-check.ts           # the Cloudflare Worker in workerd; needs dist/ and Node.js 22.18+
 bun scripts/mcp-demo.ts                       # MCP over stdio, end to end
 bun scripts/mcp-http-demo.ts                  # MCP over HTTP, end to end
 ```

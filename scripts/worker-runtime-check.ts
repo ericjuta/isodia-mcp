@@ -9,13 +9,17 @@
  * Local Durable Object data lives in a scratch directory and is deleted afterwards.
  */
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import puppeteer from 'puppeteer-core';
+import { findView } from '../src/core/model';
+import { svgToPng } from '../src/core/png';
+import { renderViewSvg } from '../src/core/render';
+import { parseModel } from '../src/core/schema';
 import { prepareWalkthrough } from '../src/core/walkthrough';
 import model from '../docs/sample/walkthrough/checkout.isoflow.json';
 import manifest from '../docs/sample/walkthrough/checkout.walkthrough.json';
@@ -90,16 +94,9 @@ try {
   await writeFile(join(publications, `${publication}.json`), JSON.stringify(prepareWalkthrough(model, { ...manifest, articleUrl })));
 
   if (built) {
+    // `cf deploy --dry-run` and `cf workers check` report the bundle size of this Build Output.
     const exit = await Bun.spawn(['node_modules/.bin/cf', 'build'], { cwd, env: env(false), stdout: 'inherit', stderr: 'inherit' }).exited;
     assert.equal(exit, 0, 'cf build succeeds');
-    const output = join(cwd, '.cloudflare/output/v1');
-    let bytes = 0;
-    for (const entry of await readdir(output, { recursive: true, withFileTypes: true })) {
-      if (entry.isFile() && /\.(m?js|wasm)$/.test(entry.name) && !entry.parentPath.includes('assets')) {
-        bytes += (await stat(join(entry.parentPath, entry.name))).size;
-      }
-    }
-    console.log(`MEASURE: Worker modules in Build Output: ${(bytes / 1024 / 1024).toFixed(2)} MiB uncompressed`);
   }
 
   // 1. A configured Worker: private routes need the token, the workspace keeps every rule.
@@ -128,15 +125,21 @@ try {
       nodes: [
         { id: 'collector', name: 'Collector', icon: 'server' },
         { id: 'buffer', name: 'Buffer', icon: 'queue', description: 'Absorbs bursts.' },
-        { id: 'store', name: 'Événements 東京', icon: 'storage' }
+        { id: 'store', name: 'Événements', icon: 'storage' }
       ],
       edges: [{ from: 'collector', to: 'buffer', label: 'HTTPS' }, { from: 'buffer', to: 'store' }]
     });
     const picture = (await call('render_diagram', { project: projectId, width: 800 })).content[0];
     assert.ok(picture?.type === 'image' && picture.mimeType === 'image/png');
-    assert.equal(pngWidth(Uint8Array.from(atob(picture.data), (char) => char.charCodeAt(0))), 800);
+    const workerPng = Uint8Array.from(atob(picture.data), (char) => char.charCodeAt(0));
+    assert.equal(pngWidth(workerPng), 800);
     await client.close();
-    console.log('PASS: token guard, connection details, and MCP create, build and PNG render in workerd');
+    // The Worker's WebAssembly renderer and the native one draw Latin text with the same bundled
+    // font, so the same model gives the same picture on either host.
+    const exported = parseModel(await (await api(`/api/projects/${projectId}/export`)).json());
+    const nativePng = await svgToPng(renderViewSvg(exported, findView(exported, undefined)).svg, 800);
+    assert.deepEqual(workerPng, nativePng, 'the Worker PNG matches the native renderer byte for byte');
+    console.log('PASS: token guard, connection details, MCP create, build and PNG render, identical to the native PNG');
 
     const started = performance.now();
     const export2400 = await api(`/api/projects/${projectId}/render?width=2400`);

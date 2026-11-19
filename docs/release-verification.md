@@ -38,6 +38,15 @@ relying on it.
   request made the PNG renderer read an image file from the server's disk. An SVG icon that
   itself points at a file path draws nothing. The server listens on `127.0.0.1` unless `HOST`
   says otherwise and refuses to start beyond localhost without a token.
+- **Cloudflare Worker (2026-11-19).** CI builds the Worker with `cf build` and runs
+  `scripts/worker-runtime-check.ts --built` against the build output in workerd: token guard,
+  HTTP MCP, an 800 px PNG byte-identical to the native renderer's, a 2400 px export, editor save
+  and stale-write `409`, an over-limit row refused with `413` and rolled back, deletion cascading
+  to history and share links, reader routes and frame policy, a Chromium article embed and a
+  blocked second origin, data and shares surviving a restart, revocation, and `503` without
+  `ISODIA_TOKEN`. `cf deploy --dry-run` then validates the Build Output (4.4 MiB, 1.6 MiB
+  compressed). Nothing has been deployed to Cloudflare; see the open items in
+  [`cloudflare.md`](cloudflare.md#not-proven-yet).
 - **A revoked share page goes quiet.** One browser-check run in eleven used to fail with a 404 on
   `/api/shared/<token>/revision`: a share page whose link had been revoked kept asking for the
   revision every three seconds, and the check sometimes caught one. The page now stops asking
@@ -53,13 +62,15 @@ relying on it.
 
 ## Gate commands
 
-    bunx tsc --noEmit                                   # typecheck
+    bun run typecheck                                   # Bun project, then the Worker against Workers runtime types
     for f in scripts/*.ts; do bun build --target=bun --no-bundle "$f" >/dev/null || echo FAIL $f; done
     bun test                                            # unit and integration suites
     bun run build                                       # vite
     bun scripts/seed-demo.ts && bun scripts/browser-check.ts   # needs a running server and CHROME_PATH;
                                                         # set ISODIA_TOKEN when the server requires one
     CHROME_PATH=/path/to/chrome bun scripts/onboarding-browser-check.ts  # scratch dev services; no build needed
+    CHROME_PATH=/path/to/chrome bun scripts/worker-runtime-check.ts --built  # needs dist/; builds the Worker with cf
+    npx cf deploy --dry-run --prebuilt --mode production  # validates that Worker build; uploads nothing
     bun scripts/icon-sheet.ts --out sheet.png           # look at it after any icon change
 
 `tsc` alone is not sufficient for `scripts/`: it accepts a duplicate `const` that Bun refuses to run,

@@ -1,6 +1,6 @@
 # Run Isodia for other people
 
-Use this guide if you operate the server. For a local trial, follow [Getting started](getting-started.md). For build and launch commands, use [Docker](../README.md#docker) or the [single-server build](../README.md#quick-start).
+Use this guide if you operate the server. For a local trial, follow [Getting started](getting-started.md). For build and launch commands, use [Docker](../README.md#docker) or the [single-server build](../README.md#quick-start). To run Isodia on Cloudflare without a server, follow the [Cloudflare guide](cloudflare.md); its settings, backups and rollback differ from those below.
 
 ## Choose what you want to expose
 
