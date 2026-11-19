@@ -60,3 +60,5 @@ An operator can run the same editor, live shares, published walkthrough reader a
 ## Outcomes
 
 2026-11-19: #14, #15 and #16 implemented on `feat/cloudflare-workers` (draft PR #17). The Bun server, Docker image and stdio MCP still use the same store and app through `openSqlite`, `src/server/disk.ts` and the native rasteriser. The Worker passed the runtime check in local workerd and in CI against the built Worker, and its Build Output validated with `cf deploy --dry-run`. Nothing was deployed: no Cloudflare resource, secret, route or DNS record exists. Still open and hosted-only: a real deploy, hosted CPU for a 2400px export, cold start, a custom domain and Cloudflare Access.
+
+Candidate review: [CI run 44503120135](https://github.com/ericjuta/isodia-mcp/actions/runs/44503120135) passed Bun checks, both Bun Chromium proofs, built-Worker runtime and framing checks, and the deploy dry run. The dry run measured a 4,520,359-byte bundle (1,650,253 bytes gzip); the 2400px export took 618 ms wall time in workerd. Neither measurement establishes hosted CPU usage. Repository landing and hosted deployment are separate gates.
