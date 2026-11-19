@@ -17,7 +17,7 @@ const PUBLICATIONS = 'virtual:isodia/walkthroughs';
  * same code the Bun server reads them with. A file that fails validation fails the build rather
  * than silently disappearing from the published site.
  */
-function publications(): Plugin {
+export function publications(): Plugin {
   return {
     name: 'isodia-publications',
     resolveId: (id) => (id === PUBLICATIONS ? `\0${PUBLICATIONS}` : undefined),

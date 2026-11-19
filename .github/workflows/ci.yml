@@ -58,7 +58,6 @@ jobs:
     timeout-minutes: 10
     env:
       CF_SEND_TELEMETRY: "false"
-      ISODIA_WALKTHROUGHS_DIR: ${{ github.workspace }}/deploy/askgina-os-walkthrough
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
@@ -70,21 +69,19 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Pin the reviewed publication
         run: sha256sum -c SHA256SUMS
-        working-directory: deploy/askgina-os-walkthrough
+        working-directory: deploy/askgina-os-walkthrough/publications
       - run: bun run build
-      - run: ./node_modules/.bin/cf build --mode askgina-os-walkthrough
-      - name: Validate the reader Worker build for deployment
+      - name: Build and validate the reader Worker for deployment
+        working-directory: deploy/askgina-os-walkthrough
         run: |
-          ./node_modules/.bin/cf deploy --dry-run --prebuilt --mode askgina-os-walkthrough
-          ./node_modules/.bin/cf workers check --prebuilt --mode askgina-os-walkthrough
-      - name: List the Build Output
-        run: find .cloudflare/output -type f | sort | xargs sha256sum
+          ../../node_modules/.bin/cf build
+          ../../node_modules/.bin/cf deploy --dry-run --prebuilt
+          ../../node_modules/.bin/cf workers check --prebuilt
+          find .cloudflare/output -type f | sort | xargs sha256sum
       - uses: actions/upload-artifact@v4
         with:
           name: askgina-os-walkthrough-build-output
-          path: |
-            .cloudflare/output
-            deploy/askgina-os-walkthrough
+          path: deploy/askgina-os-walkthrough/.cloudflare/output
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
