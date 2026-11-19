@@ -1,0 +1,1772 @@
+{
+  "schemaVersion": 1,
+  "title": "How Ask Gina OS works",
+  "articleUrl": "https://github.com/askgina/os/tree/c87c59cbbd80db965cb9945c9e8b35e11e7fce67",
+  "steps": [
+    {
+      "id": "start-here",
+      "title": "An agent can propose, not spend",
+      "body": "OS is a self-hosted workspace for proposing payments and trades. The control plane coordinates requests. The signer decides whether it can sign. This tour describes the public source at c87c59c, not a live workspace. Select a component to read its notes.",
+      "view": "overview",
+      "component": "system-at-a-glance-server"
+    },
+    {
+      "id": "review-a-payment",
+      "title": "Review on the confirmation origin",
+      "body": "The first page is the control-plane inbox. It sends the person to the separate confirmation origin to read what the signer holds and approve with a passkey. The server’s policy check is early feedback, not the authority to sign.",
+      "view": "one-payment",
+      "component": "one-payment-passkey"
+    },
+    {
+      "id": "sign-and-broadcast",
+      "title": "Approval is not a receipt",
+      "body": "A durable workflow collects the signer’s decision. The signer checks the exact intent and its own wallet limits before signing. The control plane then broadcasts the signed transaction and waits for a receipt. A pending or approved request has not necessarily landed.",
+      "view": "one-payment",
+      "component": "one-payment-signer"
+    },
+    {
+      "id": "approve-in-advance",
+      "title": "Approve a bounded series of transfers",
+      "body": "A mandate is advance approval for a narrow series of transfers. The signer keeps the grant and counts each use. An uncovered transfer returns to the normal inbox flow. A mandate does not authorize a venue order or withdrawal.",
+      "view": "mandates",
+      "component": "mandates-mandate"
+    },
+    {
+      "id": "trade",
+      "title": "Follow a limit order to the venue",
+      "body": "A venue order uses the same confirmation boundary as a payment, but the signer builds a venue action. The control plane submits it to Hyperliquid and follows its status. The repository documents tests against fake venues. It does not claim a real venue run.",
+      "view": "venue-orders",
+      "component": "venue-orders-exchange"
+    },
+    {
+      "id": "resume-work",
+      "title": "Keep coordination separate from authority",
+      "body": "The workflow continues after the person leaves the browser. Postgres stores workflow and control-plane state. The signer’s own records, not the copies shown by the web app, decide whether the approved operation can be signed.",
+      "view": "durable-state",
+      "component": "durable-state-workflow"
+    },
+    {
+      "id": "where-it-runs",
+      "title": "Choose how to isolate the signer",
+      "body": "Start with the documented Compose dev profile and test funds. The split-host layout puts the signer and confirmation service on their own host. These are deployment patterns in the repo, not a map of a live environment.",
+      "view": "deployment-choices",
+      "component": "deployment-choices-signer"
+    },
+    {
+      "id": "read-the-code",
+      "title": "Find the code behind each boundary",
+      "body": "Open the source link for the pinned repository snapshot. Start with docs/architecture.md and docs/approval-protocol.md, then use these component notes to find the code. The README distinguishes tested behavior from what is still unproven.",
+      "view": "explore-the-repo",
+      "component": "explore-the-repo-protocol"
+    },
+    {
+      "id": "next-steps",
+      "title": "Try the dev stack, not a real wallet",
+      "body": "If you want to try OS after this tour, follow the repository quickstart with test funds. This walkthrough is read-only. It does not run OS, connect to a wallet, or place orders.",
+      "view": "explore-the-repo",
+      "component": "explore-the-repo-deploy"
+    }
+  ],
+  "model": {
+    "title": "How Ask Gina OS works",
+    "items": [
+      {
+        "id": "system-at-a-glance-agent",
+        "name": "Agent",
+        "description": "<p>Any MCP client can read allowed data, propose operations, and cancel its own requests. It does not hold wallet keys.</p>",
+        "icon": "agent"
+      },
+      {
+        "id": "system-at-a-glance-person",
+        "name": "Person",
+        "description": "<p>A person manages a workspace and reviews requests in the web app. To approve, they follow the link to a different origin.</p>",
+        "icon": "user"
+      },
+      {
+        "id": "system-at-a-glance-server",
+        "name": "OS server",
+        "description": "<p>apps/server serves the control-plane API and MCP. It coordinates requests and execution, but it cannot authorize signing by itself.</p>",
+        "icon": "server"
+      },
+      {
+        "id": "system-at-a-glance-approve",
+        "name": "Confirmation page",
+        "description": "<p>apps/approve serves the separate origin and relays the confirmation exchange to the signer. It does not hold wallet keys.</p>",
+        "icon": "browser"
+      },
+      {
+        "id": "system-at-a-glance-signer",
+        "name": "Signer",
+        "description": "<p>apps/signer verifies approval and wallet policy independently. The signing side holds the wallet keys.</p>",
+        "icon": "lock"
+      },
+      {
+        "id": "one-payment-proposal",
+        "name": "MCP proposal",
+        "description": "<p>The agent proposes a recipient and amount. The server builds an intent, simulates the operation and checks policy for early feedback.</p>",
+        "icon": "agent"
+      },
+      {
+        "id": "one-payment-inbox",
+        "name": "Request inbox",
+        "description": "<p>The inbox shows the request and links to the confirmation origin. It does not collect the signing approval itself.</p>",
+        "icon": "browser"
+      },
+      {
+        "id": "one-payment-passkey",
+        "name": "Passkey review",
+        "description": "<p>The signer supplies the operation shown on the separate confirmation page. The person reviews it and the passkey approves the exact operation.</p>",
+        "icon": "user"
+      },
+      {
+        "id": "one-payment-signer",
+        "name": "Signer decision",
+        "description": "<p>The signer binds the assertion to the intent and checks the expected origin, policy, limits and prior use before signing.</p>",
+        "icon": "lock"
+      },
+      {
+        "id": "one-payment-broadcast",
+        "name": "Broadcast worker",
+        "description": "<p>The control plane collects the decision through a durable workflow, requests the signed transaction, broadcasts it and tracks the receipt.</p>",
+        "icon": "server"
+      },
+      {
+        "id": "one-payment-chain",
+        "name": "EVM chain",
+        "description": "<p>A chain receipt lets the control plane report the outcome. Approval, signing and confirmation are different states.</p>",
+        "icon": "router"
+      },
+      {
+        "id": "mandates-owner",
+        "name": "Workspace owner",
+        "description": "<p>An owner proposes a mandate for one agent and wallet. Approvers authorize the grant through the confirmation page.</p>",
+        "icon": "user"
+      },
+      {
+        "id": "mandates-agent",
+        "name": "Agent transfer",
+        "description": "<p>The agent still submits each transfer. It does not obtain a signing key or an unrestricted spending allowance.</p>",
+        "icon": "agent"
+      },
+      {
+        "id": "mandates-mandate",
+        "name": "Stored mandate",
+        "description": "<p>A grant names the recipient bounds, per-payment, window and total caps, a count limit and an expiry. The signer stores the authoritative grant and can revoke it.</p>",
+        "icon": "database"
+      },
+      {
+        "id": "mandates-ledger",
+        "name": "Signer limits",
+        "description": "<p>The signer checks the live grant and wallet policy against its own counts, then records each use with signing in one transaction.</p>",
+        "icon": "lock"
+      },
+      {
+        "id": "mandates-outcome",
+        "name": "Signed transfer",
+        "description": "<p>If the proposal is covered and passes the signer’s checks, it can proceed without a fresh approval. The normal inbox path handles proposals outside the mandate.</p>",
+        "icon": "document"
+      },
+      {
+        "id": "venue-orders-order",
+        "name": "Limit order",
+        "description": "<p>The agent proposes a Hyperliquid order. The control plane checks the venue metadata and the wallet policy for early feedback.</p>",
+        "icon": "agent"
+      },
+      {
+        "id": "venue-orders-review",
+        "name": "Order review",
+        "description": "<p>The confirmation page shows the market, side, size, limit price and other order terms before the person approves.</p>",
+        "icon": "browser"
+      },
+      {
+        "id": "venue-orders-signer",
+        "name": "Venue signing",
+        "description": "<p>The signer validates approval and policy and builds a signed venue request. It is not an EVM transaction.</p>",
+        "icon": "lock"
+      },
+      {
+        "id": "venue-orders-relay",
+        "name": "Control plane",
+        "description": "<p>The control plane posts the signed request to the venue and follows status by client order ID. A venue can refuse an approved request.</p>",
+        "icon": "server"
+      },
+      {
+        "id": "venue-orders-exchange",
+        "name": "Hyperliquid",
+        "description": "<p>The venue reports whether the order rests, fills or is refused. The project documents CI tests against fake venues, not a real venue run.</p>",
+        "icon": "router"
+      },
+      {
+        "id": "durable-state-server",
+        "name": "OS server",
+        "description": "<p>Owns workspace and request records. Some signer state is mirrored here for display, but a mirror does not authorize signing.</p>",
+        "icon": "server"
+      },
+      {
+        "id": "durable-state-workflow",
+        "name": "Workflow runtime",
+        "description": "<p>A request can span many steps and wait for a decision. The workflow resumes without depending on a person returning to the inbox.</p>",
+        "icon": "function-module"
+      },
+      {
+        "id": "durable-state-pg",
+        "name": "Postgres",
+        "description": "<p>Holds control-plane records and workflow state. The repository documents encryption for workflow content and application content, not every database field.</p>",
+        "icon": "database"
+      },
+      {
+        "id": "durable-state-signer",
+        "name": "Signer",
+        "description": "<p>Keeps wallet key access separate from the control plane and applies approvals and limits using signing-side records.</p>",
+        "icon": "lock"
+      },
+      {
+        "id": "durable-state-ledger",
+        "name": "Signer ledger",
+        "description": "<p>Signer-side SQLite stores authoritative policy and accounting records, including spent limits, approval records and mandate use.</p>",
+        "icon": "database"
+      },
+      {
+        "id": "deployment-choices-browser",
+        "name": "Person’s browser",
+        "description": "<p>The browser visits the web app and a separate origin for passkey confirmation. This diagram does not name a live host.</p>",
+        "icon": "browser"
+      },
+      {
+        "id": "deployment-choices-mcp",
+        "name": "MCP client",
+        "description": "<p>Connects to the MCP entry point. The deployment documents show how to isolate this ingress from the rest of the stack.</p>",
+        "icon": "agent"
+      },
+      {
+        "id": "deployment-choices-proxy",
+        "name": "Caddy ingress",
+        "description": "<p>The sample ingress serves the web app and the agent-facing MCP entry point. The confirmation origin remains distinct.</p>",
+        "icon": "router"
+      },
+      {
+        "id": "deployment-choices-control",
+        "name": "Server and Postgres",
+        "description": "<p>The control plane coordinates operations. On the split layout this side reaches the separate signer over mutual TLS.</p>",
+        "icon": "server"
+      },
+      {
+        "id": "deployment-choices-approval",
+        "name": "Confirmation origin",
+        "description": "<p>In the split layout the confirmation service runs on the signing side. It relays confirmation requests to the signer.</p>",
+        "icon": "browser"
+      },
+      {
+        "id": "deployment-choices-signer",
+        "name": "Signer host",
+        "description": "<p>The project documents a single Compose stack and a split-host option. Split hosting can separate the signing side from the control plane.</p>",
+        "icon": "lock"
+      },
+      {
+        "id": "explore-the-repo-web",
+        "name": "apps/web",
+        "description": "<p>Start here for the workspace and approval inbox that a person uses.</p>",
+        "icon": "browser"
+      },
+      {
+        "id": "explore-the-repo-server",
+        "name": "apps/server",
+        "description": "<p>Start here for MCP, request routing, durable workflows and execution.</p>",
+        "icon": "server"
+      },
+      {
+        "id": "explore-the-repo-signer",
+        "name": "apps/signer",
+        "description": "<p>Start here for confirmation records, policy enforcement and signing. apps/approve serves the separate confirmation page.</p>",
+        "icon": "lock"
+      },
+      {
+        "id": "explore-the-repo-protocol",
+        "name": "packages/protocol",
+        "description": "<p>Shared protocol definitions establish what the control plane and signer exchange.</p>",
+        "icon": "document"
+      },
+      {
+        "id": "explore-the-repo-world",
+        "name": "packages/world",
+        "description": "<p>The project’s Workflow SDK storage backend. packages/keys contains key management code for encrypted application content.</p>",
+        "icon": "database"
+      },
+      {
+        "id": "explore-the-repo-deploy",
+        "name": "deploy/",
+        "description": "<p>Compose, proxy and Kubernetes examples. The deploy README explains which layout each example represents.</p>",
+        "icon": "server"
+      },
+      {
+        "id": "explore-the-repo-tests",
+        "name": "e2e/ and docs/",
+        "description": "<p>Read the architecture and threat model. The end-to-end tests supply evidence for claims about supported behavior. The project is not audited.</p>",
+        "icon": "document"
+      }
+    ],
+    "views": [
+      {
+        "id": "overview",
+        "name": "System at a glance",
+        "items": [
+          {
+            "id": "system-at-a-glance-agent",
+            "tile": {
+              "x": -2,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "system-at-a-glance-person",
+            "tile": {
+              "x": 1,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "system-at-a-glance-server",
+            "tile": {
+              "x": -1,
+              "y": -11
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "system-at-a-glance-approve",
+            "tile": {
+              "x": -1,
+              "y": -19
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "system-at-a-glance-signer",
+            "tile": {
+              "x": -1,
+              "y": -22
+            },
+            "labelHeight": 80
+          }
+        ],
+        "rectangles": [
+          {
+            "id": "people",
+            "color": "color1",
+            "from": {
+              "x": -3,
+              "y": -4
+            },
+            "to": {
+              "x": 2,
+              "y": 1
+            }
+          },
+          {
+            "id": "os",
+            "color": "color7",
+            "from": {
+              "x": -3,
+              "y": -12
+            },
+            "to": {
+              "x": 2,
+              "y": -7
+            }
+          },
+          {
+            "id": "trust",
+            "color": "color2",
+            "from": {
+              "x": -3,
+              "y": -23
+            },
+            "to": {
+              "x": 2,
+              "y": -15
+            }
+          }
+        ],
+        "connectors": [
+          {
+            "id": "system-at-a-glance-agent-to-system-at-a-glance-server",
+            "description": "propose over MCP",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "system-at-a-glance-agent-to-system-at-a-glance-server:0",
+                "ref": {
+                  "item": "system-at-a-glance-agent"
+                }
+              },
+              {
+                "id": "system-at-a-glance-agent-to-system-at-a-glance-server:1",
+                "ref": {
+                  "item": "system-at-a-glance-server"
+                }
+              }
+            ]
+          },
+          {
+            "id": "system-at-a-glance-person-to-system-at-a-glance-server",
+            "description": "review request",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "system-at-a-glance-person-to-system-at-a-glance-server:0",
+                "ref": {
+                  "item": "system-at-a-glance-person"
+                }
+              },
+              {
+                "id": "system-at-a-glance-person-to-system-at-a-glance-server:1",
+                "ref": {
+                  "item": "system-at-a-glance-server"
+                }
+              }
+            ]
+          },
+          {
+            "id": "system-at-a-glance-person-to-system-at-a-glance-approve",
+            "description": "open trusted page",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "system-at-a-glance-person-to-system-at-a-glance-approve:0",
+                "ref": {
+                  "item": "system-at-a-glance-person"
+                }
+              },
+              {
+                "id": "system-at-a-glance-person-to-system-at-a-glance-approve:1",
+                "ref": {
+                  "item": "system-at-a-glance-approve"
+                }
+              }
+            ]
+          },
+          {
+            "id": "system-at-a-glance-approve-to-system-at-a-glance-signer",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "system-at-a-glance-approve-to-system-at-a-glance-signer:0",
+                "ref": {
+                  "item": "system-at-a-glance-approve"
+                }
+              },
+              {
+                "id": "system-at-a-glance-approve-to-system-at-a-glance-signer:1",
+                "ref": {
+                  "item": "system-at-a-glance-signer"
+                }
+              }
+            ]
+          },
+          {
+            "id": "system-at-a-glance-server-to-system-at-a-glance-signer",
+            "description": "request signing",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "system-at-a-glance-server-to-system-at-a-glance-signer:0",
+                "ref": {
+                  "item": "system-at-a-glance-server"
+                }
+              },
+              {
+                "id": "system-at-a-glance-server-to-system-at-a-glance-signer:1",
+                "ref": {
+                  "item": "system-at-a-glance-signer"
+                }
+              }
+            ]
+          }
+        ],
+        "textBoxes": [
+          {
+            "id": "people-label",
+            "tile": {
+              "x": -2,
+              "y": 0
+            },
+            "content": "Clients",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "os-label",
+            "tile": {
+              "x": -2,
+              "y": -8
+            },
+            "content": "Control plane",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "trust-label",
+            "tile": {
+              "x": -2,
+              "y": -16
+            },
+            "content": "Signing side",
+            "fontSize": 0.6,
+            "orientation": "X"
+          }
+        ]
+      },
+      {
+        "id": "one-payment",
+        "name": "One payment",
+        "items": [
+          {
+            "id": "one-payment-proposal",
+            "tile": {
+              "x": 0,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "one-payment-inbox",
+            "tile": {
+              "x": 0,
+              "y": -6
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "one-payment-passkey",
+            "tile": {
+              "x": 0,
+              "y": -14
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "one-payment-signer",
+            "tile": {
+              "x": 0,
+              "y": -17
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "one-payment-broadcast",
+            "tile": {
+              "x": 0,
+              "y": -25
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "one-payment-chain",
+            "tile": {
+              "x": 0,
+              "y": -28
+            },
+            "labelHeight": 80
+          }
+        ],
+        "rectangles": [
+          {
+            "id": "request",
+            "color": "color1",
+            "from": {
+              "x": -2,
+              "y": -7
+            },
+            "to": {
+              "x": 2,
+              "y": 1
+            }
+          },
+          {
+            "id": "review",
+            "color": "color2",
+            "from": {
+              "x": -2,
+              "y": -18
+            },
+            "to": {
+              "x": 2,
+              "y": -10
+            }
+          },
+          {
+            "id": "result",
+            "color": "color7",
+            "from": {
+              "x": -2,
+              "y": -29
+            },
+            "to": {
+              "x": 2,
+              "y": -21
+            }
+          }
+        ],
+        "connectors": [
+          {
+            "id": "one-payment-proposal-to-one-payment-inbox",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "one-payment-proposal-to-one-payment-inbox:0",
+                "ref": {
+                  "item": "one-payment-proposal"
+                }
+              },
+              {
+                "id": "one-payment-proposal-to-one-payment-inbox:1",
+                "ref": {
+                  "item": "one-payment-inbox"
+                }
+              }
+            ]
+          },
+          {
+            "id": "one-payment-inbox-to-one-payment-passkey",
+            "description": "follow link",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "one-payment-inbox-to-one-payment-passkey:0",
+                "ref": {
+                  "item": "one-payment-inbox"
+                }
+              },
+              {
+                "id": "one-payment-inbox-to-one-payment-passkey:1",
+                "ref": {
+                  "item": "one-payment-passkey"
+                }
+              }
+            ]
+          },
+          {
+            "id": "one-payment-passkey-to-one-payment-signer",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "one-payment-passkey-to-one-payment-signer:0",
+                "ref": {
+                  "item": "one-payment-passkey"
+                }
+              },
+              {
+                "id": "one-payment-passkey-to-one-payment-signer:1",
+                "ref": {
+                  "item": "one-payment-signer"
+                }
+              }
+            ]
+          },
+          {
+            "id": "one-payment-signer-to-one-payment-broadcast",
+            "description": "signed transaction",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "one-payment-signer-to-one-payment-broadcast:0",
+                "ref": {
+                  "item": "one-payment-signer"
+                }
+              },
+              {
+                "id": "one-payment-signer-to-one-payment-broadcast:1",
+                "ref": {
+                  "item": "one-payment-broadcast"
+                }
+              }
+            ]
+          },
+          {
+            "id": "one-payment-broadcast-to-one-payment-chain",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "one-payment-broadcast-to-one-payment-chain:0",
+                "ref": {
+                  "item": "one-payment-broadcast"
+                }
+              },
+              {
+                "id": "one-payment-broadcast-to-one-payment-chain:1",
+                "ref": {
+                  "item": "one-payment-chain"
+                }
+              }
+            ]
+          }
+        ],
+        "textBoxes": [
+          {
+            "id": "request-label",
+            "tile": {
+              "x": -1,
+              "y": 0
+            },
+            "content": "Proposal",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "review-label",
+            "tile": {
+              "x": -1,
+              "y": -11
+            },
+            "content": "Approval",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "result-label",
+            "tile": {
+              "x": -1,
+              "y": -22
+            },
+            "content": "Execution",
+            "fontSize": 0.6,
+            "orientation": "X"
+          }
+        ]
+      },
+      {
+        "id": "mandates",
+        "name": "Mandates",
+        "items": [
+          {
+            "id": "mandates-owner",
+            "tile": {
+              "x": -2,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "mandates-agent",
+            "tile": {
+              "x": 1,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "mandates-mandate",
+            "tile": {
+              "x": -1,
+              "y": -11
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "mandates-ledger",
+            "tile": {
+              "x": -1,
+              "y": -14
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "mandates-outcome",
+            "tile": {
+              "x": -1,
+              "y": -22
+            },
+            "labelHeight": 80
+          }
+        ],
+        "rectangles": [
+          {
+            "id": "setup",
+            "color": "color1",
+            "from": {
+              "x": -3,
+              "y": -4
+            },
+            "to": {
+              "x": 2,
+              "y": 1
+            }
+          },
+          {
+            "id": "enforce",
+            "color": "color2",
+            "from": {
+              "x": -2,
+              "y": -15
+            },
+            "to": {
+              "x": 1,
+              "y": -7
+            }
+          },
+          {
+            "id": "result",
+            "color": "color7",
+            "from": {
+              "x": -2,
+              "y": -23
+            },
+            "to": {
+              "x": 1,
+              "y": -18
+            }
+          }
+        ],
+        "connectors": [
+          {
+            "id": "mandates-owner-to-mandates-mandate",
+            "description": "approve grant",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "mandates-owner-to-mandates-mandate:0",
+                "ref": {
+                  "item": "mandates-owner"
+                }
+              },
+              {
+                "id": "mandates-owner-to-mandates-mandate:1",
+                "ref": {
+                  "item": "mandates-mandate"
+                }
+              }
+            ]
+          },
+          {
+            "id": "mandates-agent-to-mandates-ledger",
+            "description": "propose transfer",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "mandates-agent-to-mandates-ledger:0",
+                "ref": {
+                  "item": "mandates-agent"
+                }
+              },
+              {
+                "id": "mandates-agent-to-mandates-ledger:1",
+                "ref": {
+                  "item": "mandates-ledger"
+                }
+              }
+            ]
+          },
+          {
+            "id": "mandates-mandate-to-mandates-ledger",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "mandates-mandate-to-mandates-ledger:0",
+                "ref": {
+                  "item": "mandates-mandate"
+                }
+              },
+              {
+                "id": "mandates-mandate-to-mandates-ledger:1",
+                "ref": {
+                  "item": "mandates-ledger"
+                }
+              }
+            ]
+          },
+          {
+            "id": "mandates-ledger-to-mandates-outcome",
+            "description": "sign within limits",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "mandates-ledger-to-mandates-outcome:0",
+                "ref": {
+                  "item": "mandates-ledger"
+                }
+              },
+              {
+                "id": "mandates-ledger-to-mandates-outcome:1",
+                "ref": {
+                  "item": "mandates-outcome"
+                }
+              }
+            ]
+          }
+        ],
+        "textBoxes": [
+          {
+            "id": "setup-label",
+            "tile": {
+              "x": -2,
+              "y": 0
+            },
+            "content": "Grant",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "enforce-label",
+            "tile": {
+              "x": -1,
+              "y": -8
+            },
+            "content": "Limits",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "result-label",
+            "tile": {
+              "x": -1,
+              "y": -19
+            },
+            "content": "Result",
+            "fontSize": 0.6,
+            "orientation": "X"
+          }
+        ]
+      },
+      {
+        "id": "venue-orders",
+        "name": "Venue orders",
+        "items": [
+          {
+            "id": "venue-orders-order",
+            "tile": {
+              "x": -1,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "venue-orders-review",
+            "tile": {
+              "x": 0,
+              "y": -11
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "venue-orders-signer",
+            "tile": {
+              "x": 0,
+              "y": -14
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "venue-orders-relay",
+            "tile": {
+              "x": -1,
+              "y": -22
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "venue-orders-exchange",
+            "tile": {
+              "x": -1,
+              "y": -25
+            },
+            "labelHeight": 80
+          }
+        ],
+        "rectangles": [
+          {
+            "id": "request",
+            "color": "color1",
+            "from": {
+              "x": -2,
+              "y": -4
+            },
+            "to": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          {
+            "id": "approval",
+            "color": "color2",
+            "from": {
+              "x": -2,
+              "y": -15
+            },
+            "to": {
+              "x": 2,
+              "y": -7
+            }
+          },
+          {
+            "id": "venue",
+            "color": "color7",
+            "from": {
+              "x": -3,
+              "y": -26
+            },
+            "to": {
+              "x": 2,
+              "y": -18
+            }
+          }
+        ],
+        "connectors": [
+          {
+            "id": "venue-orders-order-to-venue-orders-review",
+            "description": "request approval",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "venue-orders-order-to-venue-orders-review:0",
+                "ref": {
+                  "item": "venue-orders-order"
+                }
+              },
+              {
+                "id": "venue-orders-order-to-venue-orders-review:1",
+                "ref": {
+                  "item": "venue-orders-review"
+                }
+              }
+            ]
+          },
+          {
+            "id": "venue-orders-review-to-venue-orders-signer",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "venue-orders-review-to-venue-orders-signer:0",
+                "ref": {
+                  "item": "venue-orders-review"
+                }
+              },
+              {
+                "id": "venue-orders-review-to-venue-orders-signer:1",
+                "ref": {
+                  "item": "venue-orders-signer"
+                }
+              }
+            ]
+          },
+          {
+            "id": "venue-orders-signer-to-venue-orders-relay",
+            "description": "signed request",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "venue-orders-signer-to-venue-orders-relay:0",
+                "ref": {
+                  "item": "venue-orders-signer"
+                }
+              },
+              {
+                "id": "venue-orders-signer-to-venue-orders-relay:1",
+                "ref": {
+                  "item": "venue-orders-relay"
+                }
+              }
+            ]
+          },
+          {
+            "id": "venue-orders-relay-to-venue-orders-exchange",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "venue-orders-relay-to-venue-orders-exchange:0",
+                "ref": {
+                  "item": "venue-orders-relay"
+                }
+              },
+              {
+                "id": "venue-orders-relay-to-venue-orders-exchange:1",
+                "ref": {
+                  "item": "venue-orders-exchange"
+                }
+              }
+            ]
+          }
+        ],
+        "textBoxes": [
+          {
+            "id": "request-label",
+            "tile": {
+              "x": -1,
+              "y": 0
+            },
+            "content": "Order",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "approval-label",
+            "tile": {
+              "x": -1,
+              "y": -8
+            },
+            "content": "Approval",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "venue-label",
+            "tile": {
+              "x": -2,
+              "y": -19
+            },
+            "content": "Submission",
+            "fontSize": 0.6,
+            "orientation": "X"
+          }
+        ]
+      },
+      {
+        "id": "durable-state",
+        "name": "Durable state",
+        "items": [
+          {
+            "id": "durable-state-server",
+            "tile": {
+              "x": -5,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "durable-state-workflow",
+            "tile": {
+              "x": -5,
+              "y": -6
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "durable-state-pg",
+            "tile": {
+              "x": -1,
+              "y": -14
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "durable-state-signer",
+            "tile": {
+              "x": 3,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "durable-state-ledger",
+            "tile": {
+              "x": 3,
+              "y": -6
+            },
+            "labelHeight": 80
+          }
+        ],
+        "rectangles": [
+          {
+            "id": "control",
+            "color": "color1",
+            "from": {
+              "x": -7,
+              "y": -7
+            },
+            "to": {
+              "x": -2,
+              "y": 1
+            }
+          },
+          {
+            "id": "store",
+            "color": "color7",
+            "from": {
+              "x": -2,
+              "y": -15
+            },
+            "to": {
+              "x": 1,
+              "y": -10
+            }
+          },
+          {
+            "id": "signing",
+            "color": "color2",
+            "from": {
+              "x": 0,
+              "y": -7
+            },
+            "to": {
+              "x": 6,
+              "y": 1
+            }
+          }
+        ],
+        "connectors": [
+          {
+            "id": "durable-state-server-to-durable-state-workflow",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "durable-state-server-to-durable-state-workflow:0",
+                "ref": {
+                  "item": "durable-state-server"
+                }
+              },
+              {
+                "id": "durable-state-server-to-durable-state-workflow:1",
+                "ref": {
+                  "item": "durable-state-workflow"
+                }
+              }
+            ]
+          },
+          {
+            "id": "durable-state-workflow-to-durable-state-pg",
+            "description": "keep run state",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "durable-state-workflow-to-durable-state-pg:0",
+                "ref": {
+                  "item": "durable-state-workflow"
+                }
+              },
+              {
+                "id": "durable-state-workflow-to-durable-state-pg:1",
+                "ref": {
+                  "item": "durable-state-pg"
+                }
+              }
+            ]
+          },
+          {
+            "id": "durable-state-server-to-durable-state-pg",
+            "description": "keep app state",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "durable-state-server-to-durable-state-pg:0",
+                "ref": {
+                  "item": "durable-state-server"
+                }
+              },
+              {
+                "id": "durable-state-server-to-durable-state-pg:1",
+                "ref": {
+                  "item": "durable-state-pg"
+                }
+              }
+            ]
+          },
+          {
+            "id": "durable-state-signer-to-durable-state-ledger",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "durable-state-signer-to-durable-state-ledger:0",
+                "ref": {
+                  "item": "durable-state-signer"
+                }
+              },
+              {
+                "id": "durable-state-signer-to-durable-state-ledger:1",
+                "ref": {
+                  "item": "durable-state-ledger"
+                }
+              }
+            ]
+          }
+        ],
+        "textBoxes": [
+          {
+            "id": "control-label",
+            "tile": {
+              "x": -6,
+              "y": 0
+            },
+            "content": "Coordination",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "store-label",
+            "tile": {
+              "x": -1,
+              "y": -11
+            },
+            "content": "Storage",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "signing-label",
+            "tile": {
+              "x": 1,
+              "y": 0
+            },
+            "content": "Signing authority",
+            "fontSize": 0.6,
+            "orientation": "X"
+          }
+        ]
+      },
+      {
+        "id": "deployment-choices",
+        "name": "Deployment choices",
+        "items": [
+          {
+            "id": "deployment-choices-browser",
+            "tile": {
+              "x": -2,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "deployment-choices-mcp",
+            "tile": {
+              "x": 1,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "deployment-choices-proxy",
+            "tile": {
+              "x": -1,
+              "y": -11
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "deployment-choices-control",
+            "tile": {
+              "x": -1,
+              "y": -14
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "deployment-choices-approval",
+            "tile": {
+              "x": -1,
+              "y": -22
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "deployment-choices-signer",
+            "tile": {
+              "x": -1,
+              "y": -25
+            },
+            "labelHeight": 80
+          }
+        ],
+        "rectangles": [
+          {
+            "id": "client",
+            "color": "color1",
+            "from": {
+              "x": -3,
+              "y": -4
+            },
+            "to": {
+              "x": 2,
+              "y": 1
+            }
+          },
+          {
+            "id": "control",
+            "color": "color7",
+            "from": {
+              "x": -3,
+              "y": -15
+            },
+            "to": {
+              "x": 2,
+              "y": -7
+            }
+          },
+          {
+            "id": "trust",
+            "color": "color2",
+            "from": {
+              "x": -3,
+              "y": -26
+            },
+            "to": {
+              "x": 2,
+              "y": -18
+            }
+          }
+        ],
+        "connectors": [
+          {
+            "id": "deployment-choices-browser-to-deployment-choices-proxy",
+            "description": "open web app",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "deployment-choices-browser-to-deployment-choices-proxy:0",
+                "ref": {
+                  "item": "deployment-choices-browser"
+                }
+              },
+              {
+                "id": "deployment-choices-browser-to-deployment-choices-proxy:1",
+                "ref": {
+                  "item": "deployment-choices-proxy"
+                }
+              }
+            ]
+          },
+          {
+            "id": "deployment-choices-mcp-to-deployment-choices-proxy",
+            "description": "connect",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "deployment-choices-mcp-to-deployment-choices-proxy:0",
+                "ref": {
+                  "item": "deployment-choices-mcp"
+                }
+              },
+              {
+                "id": "deployment-choices-mcp-to-deployment-choices-proxy:1",
+                "ref": {
+                  "item": "deployment-choices-proxy"
+                }
+              }
+            ]
+          },
+          {
+            "id": "deployment-choices-proxy-to-deployment-choices-control",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "deployment-choices-proxy-to-deployment-choices-control:0",
+                "ref": {
+                  "item": "deployment-choices-proxy"
+                }
+              },
+              {
+                "id": "deployment-choices-proxy-to-deployment-choices-control:1",
+                "ref": {
+                  "item": "deployment-choices-control"
+                }
+              }
+            ]
+          },
+          {
+            "id": "deployment-choices-browser-to-deployment-choices-approval",
+            "description": "confirm separately",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "deployment-choices-browser-to-deployment-choices-approval:0",
+                "ref": {
+                  "item": "deployment-choices-browser"
+                }
+              },
+              {
+                "id": "deployment-choices-browser-to-deployment-choices-approval:1",
+                "ref": {
+                  "item": "deployment-choices-approval"
+                }
+              }
+            ]
+          },
+          {
+            "id": "deployment-choices-control-to-deployment-choices-signer",
+            "description": "mutual TLS on split hosts",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "deployment-choices-control-to-deployment-choices-signer:0",
+                "ref": {
+                  "item": "deployment-choices-control"
+                }
+              },
+              {
+                "id": "deployment-choices-control-to-deployment-choices-signer:1",
+                "ref": {
+                  "item": "deployment-choices-signer"
+                }
+              }
+            ]
+          },
+          {
+            "id": "deployment-choices-approval-to-deployment-choices-signer",
+            "color": "slate",
+            "anchors": [
+              {
+                "id": "deployment-choices-approval-to-deployment-choices-signer:0",
+                "ref": {
+                  "item": "deployment-choices-approval"
+                }
+              },
+              {
+                "id": "deployment-choices-approval-to-deployment-choices-signer:1",
+                "ref": {
+                  "item": "deployment-choices-signer"
+                }
+              }
+            ]
+          }
+        ],
+        "textBoxes": [
+          {
+            "id": "client-label",
+            "tile": {
+              "x": -2,
+              "y": 0
+            },
+            "content": "Entry points",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "control-label",
+            "tile": {
+              "x": -2,
+              "y": -8
+            },
+            "content": "Control side",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "trust-label",
+            "tile": {
+              "x": -2,
+              "y": -19
+            },
+            "content": "Signing side",
+            "fontSize": 0.6,
+            "orientation": "X"
+          }
+        ]
+      },
+      {
+        "id": "explore-the-repo",
+        "name": "Explore the repo",
+        "items": [
+          {
+            "id": "explore-the-repo-web",
+            "tile": {
+              "x": -11,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "explore-the-repo-server",
+            "tile": {
+              "x": -8,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "explore-the-repo-signer",
+            "tile": {
+              "x": -5,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "explore-the-repo-protocol",
+            "tile": {
+              "x": -1,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "explore-the-repo-world",
+            "tile": {
+              "x": 2,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "explore-the-repo-deploy",
+            "tile": {
+              "x": 7,
+              "y": -3
+            },
+            "labelHeight": 80
+          },
+          {
+            "id": "explore-the-repo-tests",
+            "tile": {
+              "x": 10,
+              "y": -3
+            },
+            "labelHeight": 80
+          }
+        ],
+        "rectangles": [
+          {
+            "id": "apps",
+            "color": "color1",
+            "from": {
+              "x": -12,
+              "y": -4
+            },
+            "to": {
+              "x": -4,
+              "y": 1
+            }
+          },
+          {
+            "id": "shared",
+            "color": "color7",
+            "from": {
+              "x": -2,
+              "y": -4
+            },
+            "to": {
+              "x": 4,
+              "y": 1
+            }
+          },
+          {
+            "id": "operate",
+            "color": "color2",
+            "from": {
+              "x": 6,
+              "y": -4
+            },
+            "to": {
+              "x": 11,
+              "y": 1
+            }
+          }
+        ],
+        "connectors": [],
+        "textBoxes": [
+          {
+            "id": "apps-label",
+            "tile": {
+              "x": -11,
+              "y": 0
+            },
+            "content": "Applications",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "shared-label",
+            "tile": {
+              "x": -1,
+              "y": 0
+            },
+            "content": "Shared packages",
+            "fontSize": 0.6,
+            "orientation": "X"
+          },
+          {
+            "id": "operate-label",
+            "tile": {
+              "x": 7,
+              "y": 0
+            },
+            "content": "Run and verify",
+            "fontSize": 0.6,
+            "orientation": "X"
+          }
+        ]
+      }
+    ],
+    "icons": [
+      {
+        "id": "agent",
+        "name": "Agent",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSI4NyIgdmlld0JveD0iLTU2LjYgLTUyIDExMy4yIDg3Ij48ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxYjFkMjIiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiPjxwYXRoIGQ9Ik0wIC0zMi42NkwwIC00My4xMSIgc3Ryb2tlLXdpZHRoPSIzIi8+PGNpcmNsZSBjeD0iMCIgY3k9Ii00NC40MiIgcj0iNC41IiBmaWxsPSIjMWIxZDIyIiBzdHJva2U9Im5vbmUiLz48cGF0aCBkPSJNMCA2LjU1TC0xMS4zMiAwTC0xMS4zMiAtNi41M0wwIDAuMDJaIiBmaWxsPSIjZWNlOWUwIi8+PHBhdGggZD0iTTAgNi41NUwxMS4zMiAwTDExLjMyIC02LjUzTDAgMC4wMloiIGZpbGw9IiNkOWQ1Y2EiLz48cGF0aCBkPSJNMCAwLjAyTDExLjMyIC02LjUzTDAgLTEzLjA4TC0xMS4zMiAtNi41M1oiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNLTEuNyAxMC44M0wtMzAgLTUuNTVMLTMwIC0zMC4zN0wtMS43IC0xMy45OVoiIGZpbGw9IiNlY2U5ZTAiLz48cGF0aCBkPSJNLTEuNyAxMC44M0wzMCAtNy41MUwzMCAtMzIuMzRMLTEuNyAtMTMuOTlaIiBmaWxsPSIjZDlkNWNhIi8+PHBhdGggZD0iTS0xLjcgLTEzLjk5TDMwIC0zMi4zNEwxLjcgLTQ4LjcyTC0zMCAtMzAuMzdaIiBmaWxsPSIjZmZmZmZmIi8+PGNpcmNsZSBjeD0iNy44MSIgY3k9Ii05LjA3IiByPSI1IiBmaWxsPSIjMWIxZDIyIiBzdHJva2U9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMC40OSIgY3k9Ii0xNi40MSIgcj0iNSIgZmlsbD0iIzFiMWQyMiIgc3Ryb2tlPSJub25lIi8+PHBhdGggZD0iTTguNDQgLTEuOTlMMTkuODYgLTguNTkiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLW9wYWNpdHk9IjAuNDUiLz48L2c+PC9zdmc+",
+        "collection": "isodia",
+        "isIsometric": true
+      },
+      {
+        "id": "user",
+        "name": "User",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSI4OSIgdmlld0JveD0iLTU2LjYgLTU0IDExMy4yIDg5Ij48ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxYjFkMjIiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiPjxwYXRoIGQ9Ik0tMTAuNDEgLTI3LjQzTC0yNC4wMSAwQTI0LjAxIDEzLjkgMCAwIDAgMjQuMDEgMEwxMC40MSAtMjcuNDNBMTAuNDEgNi4wMiAwIDAgMSAtMTAuNDEgLTI3LjQzWiIgZmlsbD0iI2VjZTllMCIgc3Ryb2tlPSJub25lIi8+PHBhdGggZD0iTTIuMDggLTIxLjUzTDQuOCAxMy42MkEyNC4wMSAxMy45IDAgMCAwIDI0LjAxIDBMMTAuNDEgLTI3LjQzQTEwLjQxIDYuMDIgMCAwIDEgMi4wOCAtMjEuNTNaIiBmaWxsPSIjZDlkNWNhIiBzdHJva2U9Im5vbmUiLz48cGF0aCBkPSJNLTEwLjQxIC0yNy40M0wtMjQuMDEgMEEyNC4wMSAxMy45IDAgMCAwIDI0LjAxIDBMMTAuNDEgLTI3LjQzQTEwLjQxIDYuMDIgMCAwIDEgLTEwLjQxIC0yNy40M1oiLz48ZWxsaXBzZSBjeD0iMCIgY3k9Ii0yNy40MyIgcng9IjEwLjQxIiByeT0iNi4wMiIgZmlsbD0iI2ZmZmZmZiIvPjxjaXJjbGUgY3g9IjAiIGN5PSItMzkuMTkiIHI9IjEyLjAxIiBmaWxsPSIjZmZmZmZmIiBzdHJva2U9Im5vbmUiLz48cGF0aCBkPSJNOS44NCAtNDYuMDhBMTIuMDEgMTIuMDEgMCAwIDEgLTYuODkgLTI5LjM2QTE3LjQxIDE3LjQxIDAgMCAwIDkuODQgLTQ2LjA4WiIgZmlsbD0iI2Q5ZDVjYSIgc3Ryb2tlPSJub25lIi8+PGNpcmNsZSBjeD0iMCIgY3k9Ii0zOS4xOSIgcj0iMTIuMDEiLz48L2c+PC9zdmc+",
+        "collection": "isodia",
+        "isIsometric": true
+      },
+      {
+        "id": "server",
+        "name": "Server",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSIxMDYiIHZpZXdCb3g9Ii01Ni42IC03MSAxMTMuMiAxMDYiPjxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFiMWQyMiIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCI+PHBhdGggZD0iTTEuNyAxNy4zNkwtMzAgLTAuOThMLTMwIC01MS45M0wxLjcgLTMzLjU5WiIgZmlsbD0iI2VjZTllMCIvPjxwYXRoIGQ9Ik0xLjcgMTcuMzZMMzAgMC45OEwzMCAtNDkuOTdMMS43IC0zMy41OVoiIGZpbGw9IiNkOWQ1Y2EiLz48cGF0aCBkPSJNMS43IC0zMy41OUwzMCAtNDkuOTdMLTEuNyAtNjguMzFMLTMwIC01MS45M1oiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNNS42NiAtMjQuNjdMMTkuMjQgLTMyLjUzIiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSIyNC45IiBjeT0iLTM1LjgxIiByPSIzIiBmaWxsPSIjMWIxZDIyIiBzdHJva2U9Im5vbmUiLz48cGF0aCBkPSJNNS42NiAtMTEuOTNMMTkuMjQgLTE5LjgiIHN0cm9rZS13aWR0aD0iMyIvPjxjaXJjbGUgY3g9IjI0LjkiIGN5PSItMjMuMDciIHI9IjMiIGZpbGw9IiMxYjFkMjIiIHN0cm9rZT0ibm9uZSIvPjxwYXRoIGQ9Ik01LjY2IDAuOEwxOS4yNCAtNy4wNiIgc3Ryb2tlLXdpZHRoPSIzIi8+PGNpcmNsZSBjeD0iMjQuOSIgY3k9Ii0xMC4zMyIgcj0iMyIgZmlsbD0iIzFiMWQyMiIgc3Ryb2tlPSJub25lIi8+PHBhdGggZD0iTS0xLjQ3IC0xOC4xTC0yNi44MyAtMzIuNzciIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLW9wYWNpdHk9IjAuNDUiLz48cGF0aCBkPSJNLTEuNDcgLTUuMzZMLTI2LjgzIC0yMC4wNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2Utb3BhY2l0eT0iMC40NSIvPjxwYXRoIGQ9Ik0tMS40NyA3LjM4TC0yNi44MyAtNy4zIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1vcGFjaXR5PSIwLjQ1Ii8+PC9nPjwvc3ZnPg==",
+        "collection": "isodia",
+        "isIsometric": true
+      },
+      {
+        "id": "browser",
+        "name": "Browser",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSI5MyIgdmlld0JveD0iLTU2LjYgLTU4IDExMy4yIDkzIj48ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxYjFkMjIiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiPjxwYXRoIGQ9Ik0tMjEuNTEgMTIuNDVMLTI0LjkgMTAuNDhMLTI0LjkgLTMwLjAyTC0yMS41MSAtMjguMDVaIiBmaWxsPSIjZWNlOWUwIi8+PHBhdGggZD0iTS0yMS41MSAxMi40NUwyMS41MSAtMTIuNDVMMjEuNTEgLTUyLjk1TC0yMS41MSAtMjguMDVaIiBmaWxsPSIjZDlkNWNhIi8+PHBhdGggZD0iTS0yMS41MSAtMjguMDVMMjEuNTEgLTUyLjk1TDE4LjExIC01NC45MUwtMjQuOSAtMzAuMDJaIiBmaWxsPSIjZmZmZmZmIi8+PHBhdGggZD0iTS0yMS41MSAtMTkuOTVMMjEuNTEgLTQ0Ljg1IiBzdHJva2Utd2lkdGg9IjIiLz48Y2lyY2xlIGN4PSItMTguMDciIGN5PSItMjUuOTkiIHI9IjIuNCIgZmlsbD0iIzFiMWQyMiIgc3Ryb2tlPSJub25lIi8+PGNpcmNsZSBjeD0iLTE1LjA2IiBjeT0iLTI3LjczIiByPSIyLjQiIGZpbGw9IiMxYjFkMjIiIHN0cm9rZT0ibm9uZSIvPjxjaXJjbGUgY3g9Ii0xMi4wNCIgY3k9Ii0yOS40OCIgcj0iMi40IiBmaWxsPSIjMWIxZDIyIiBzdHJva2U9Im5vbmUiLz48cGF0aCBkPSJNLTE3LjIxIC0xNC4zNEwxMi45IC0zMS43NyIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2Utb3BhY2l0eT0iMC40NSIvPjxwYXRoIGQ9Ik0tMTcuMjEgLTcuODZMNC4zIC0yMC4zMSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2Utb3BhY2l0eT0iMC40NSIvPjxwYXRoIGQ9Ik0tMTcuMjEgLTEuMzhMOC42IC0xNi4zMiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2Utb3BhY2l0eT0iMC40NSIvPjwvZz48L3N2Zz4=",
+        "collection": "isodia",
+        "isIsometric": true
+      },
+      {
+        "id": "lock",
+        "name": "Lock",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSI4MSIgdmlld0JveD0iLTU2LjYgLTQ2IDExMy4yIDgxIj48ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxYjFkMjIiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiPjxwYXRoIGQ9Ik0tOC40OSAtMjIuNTJMLTguMzMgLTI0LjUzTC03Ljg0IC0yNi42NEwtNy4wNiAtMjguNzlMLTYgLTMwLjg5TC00LjcyIC0zMi44NUwtMy4yNSAtMzQuNjFMLTEuNjYgLTM2LjA5TDAgLTM3LjIzTDEuNjYgLTM4TDMuMjUgLTM4LjM3TDQuNzIgLTM4LjMxTDYgLTM3Ljg0TDcuMDYgLTM2Ljk2TDcuODQgLTM1LjcyTDguMzMgLTM0LjE3TDguNDkgLTMyLjM1TDguNDkgLTMyLjM1IiBzdHJva2Utd2lkdGg9IjkiLz48cGF0aCBkPSJNLTguNDkgLTIyLjUyTC04LjMzIC0yNC41M0wtNy44NCAtMjYuNjRMLTcuMDYgLTI4Ljc5TC02IC0zMC44OUwtNC43MiAtMzIuODVMLTMuMjUgLTM0LjYxTC0xLjY2IC0zNi4wOUwwIC0zNy4yM0wxLjY2IC0zOEwzLjI1IC0zOC4zN0w0LjcyIC0zOC4zMUw2IC0zNy44NEw3LjA2IC0zNi45Nkw3Ljg0IC0zNS43Mkw4LjMzIC0zNC4xN0w4LjQ5IC0zMi4zNUw4LjQ5IC0zMi4zNSIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjQiLz48cGF0aCBkPSJNLTMuOTYgMTQuMDlMLTI0LjM0IDIuMjlMLTI0LjM0IC0yNS4xNEwtMy45NiAtMTMuMzVaIiBmaWxsPSIjZWNlOWUwIi8+PHBhdGggZD0iTS0zLjk2IDE0LjA5TDI0LjM0IC0yLjI5TDI0LjM0IC0yOS43M0wtMy45NiAtMTMuMzVaIiBmaWxsPSIjZDlkNWNhIi8+PHBhdGggZD0iTS0zLjk2IC0xMy4zNUwyNC4zNCAtMjkuNzNMMy45NiAtNDEuNTJMLTI0LjM0IC0yNS4xNFoiIGZpbGw9IiNmZmZmZmYiLz48Y2lyY2xlIGN4PSIxMC4xOSIgY3k9Ii0xMC4wMiIgcj0iNC41IiBmaWxsPSIjMWIxZDIyIiBzdHJva2U9Im5vbmUiLz48cGF0aCBkPSJNOS4wNiAtOC44MUwxMS4zMiAtMTAuMTJMMTIuMTcgLTEuODNMOC4yMSAwLjQ2WiIgZmlsbD0iIzFiMWQyMiIgc3Ryb2tlPSJub25lIi8+PC9nPjwvc3ZnPg==",
+        "collection": "isodia",
+        "isIsometric": true
+      },
+      {
+        "id": "router",
+        "name": "Router",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSI3MyIgdmlld0JveD0iLTU2LjYgLTM4IDExMy4yIDczIj48ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxYjFkMjIiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiPjxwYXRoIGQ9Ik0tMzMuNjIgLTE1LjY4TC0zMy42MiAwQTMzLjYyIDE5LjQ2IDAgMCAwIDMzLjYyIDBMMzMuNjIgLTE1LjY4QTMzLjYyIDE5LjQ2IDAgMCAxIC0zMy42MiAtMTUuNjhaIiBmaWxsPSIjZWNlOWUwIiBzdHJva2U9Im5vbmUiLz48cGF0aCBkPSJNNi43MiAzLjM5TDYuNzIgMTkuMDdBMzMuNjIgMTkuNDYgMCAwIDAgMzMuNjIgMEwzMy42MiAtMTUuNjhBMzMuNjIgMTkuNDYgMCAwIDEgNi43MiAzLjM5WiIgZmlsbD0iI2Q5ZDVjYSIgc3Ryb2tlPSJub25lIi8+PHBhdGggZD0iTS0zMy42MiAtMTUuNjhMLTMzLjYyIDBBMzMuNjIgMTkuNDYgMCAwIDAgMzMuNjIgMEwzMy42MiAtMTUuNjhBMzMuNjIgMTkuNDYgMCAwIDEgLTMzLjYyIC0xNS42OFoiLz48ZWxsaXBzZSBjeD0iMCIgY3k9Ii0xNS42OCIgcng9IjMzLjYyIiByeT0iMTkuNDYiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNLTE5LjUgLTE1LjY4TDE5LjUgLTE1LjY4IiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMCAtNC4zOUwwIC0yNi45NiIgc3Ryb2tlLXdpZHRoPSIzIi8+PHBhdGggZD0iTTI2Ljg5IC0xNS42OEwxOC44MyAtMTguOThMMTguODMgLTEyLjM3WiIgZmlsbD0iIzFiMWQyMiIgc3Ryb2tlPSJub25lIi8+PHBhdGggZD0iTS0yNi44OSAtMTUuNjhMLTE4LjgzIC0xMi4zN0wtMTguODMgLTE4Ljk4WiIgZmlsbD0iIzFiMWQyMiIgc3Ryb2tlPSJub25lIi8+PHBhdGggZD0iTTAgLTMxLjI0TC01LjcyIC0yNi41N0w1LjcyIC0yNi41N1oiIGZpbGw9IiMxYjFkMjIiIHN0cm9rZT0ibm9uZSIvPjxwYXRoIGQ9Ik0wIC0wLjExTDUuNzIgLTQuNzhMLTUuNzIgLTQuNzhaIiBmaWxsPSIjMWIxZDIyIiBzdHJva2U9Im5vbmUiLz48L2c+PC9zdmc+",
+        "collection": "isodia",
+        "isIsometric": true
+      },
+      {
+        "id": "database",
+        "name": "Database",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSIxMDAiIHZpZXdCb3g9Ii01Ni42IC02NSAxMTMuMiAxMDAiPjxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzFiMWQyMiIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCI+PHBhdGggZD0iTS0yOC44MiAtNDUuNzJMLTI4LjgyIDBBMjguODIgMTYuNjggMCAwIDAgMjguODIgMEwyOC44MiAtNDUuNzJBMjguODIgMTYuNjggMCAwIDEgLTI4LjgyIC00NS43MloiIGZpbGw9IiNlY2U5ZTAiIHN0cm9rZT0ibm9uZSIvPjxwYXRoIGQ9Ik01Ljc2IC0yOS4zOEw1Ljc2IDE2LjM0QTI4LjgyIDE2LjY4IDAgMCAwIDI4LjgyIDBMMjguODIgLTQ1LjcyQTI4LjgyIDE2LjY4IDAgMCAxIDUuNzYgLTI5LjM4WiIgZmlsbD0iI2Q5ZDVjYSIgc3Ryb2tlPSJub25lIi8+PHBhdGggZD0iTS0yOC44MiAtNDUuNzJMLTI4LjgyIDBBMjguODIgMTYuNjggMCAwIDAgMjguODIgMEwyOC44MiAtNDUuNzJBMjguODIgMTYuNjggMCAwIDEgLTI4LjgyIC00NS43MloiLz48ZWxsaXBzZSBjeD0iMCIgY3k9Ii00NS43MiIgcng9IjI4LjgyIiByeT0iMTYuNjgiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNLTI4LjgyIC0xNi4zM0EyOC44MiAxNi42OCAwIDAgMCAyOC44MiAtMTYuMzMiIHN0cm9rZS13aWR0aD0iMiIvPjxwYXRoIGQ9Ik0tMjguODIgLTMxLjM1QTI4LjgyIDE2LjY4IDAgMCAwIDI4LjgyIC0zMS4zNSIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9nPjwvc3ZnPg==",
+        "collection": "isodia",
+        "isIsometric": true
+      },
+      {
+        "id": "document",
+        "name": "Document",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSI5NyIgdmlld0JveD0iLTU2LjYgLTYyIDExMy4yIDk3Ij48ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxYjFkMjIiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiPjxwYXRoIGQ9Ik0tMTYuOTggOS44M0wtMjAuMzggNy44NkwtMjAuMzggLTM5LjE3TC0xNi45OCAtMzcuMloiIGZpbGw9IiNlY2U5ZTAiLz48cGF0aCBkPSJNLTE2Ljk4IDkuODNMMTYuOTggLTkuODNMMTYuOTggLTU2Ljg2TC0xNi45OCAtMzcuMloiIGZpbGw9IiNkOWQ1Y2EiLz48cGF0aCBkPSJNLTE2Ljk4IC0zNy4yTDE2Ljk4IC01Ni44NkwxMy41OCAtNTguODJMLTIwLjM4IC0zOS4xN1oiIGZpbGw9IiNmZmZmZmYiLz48cGF0aCBkPSJNLTExLjU1IC0zMEwxMS41NSAtNDMuMzciIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLW9wYWNpdHk9IjAuNDUiLz48cGF0aCBkPSJNLTExLjU1IC0yMy40MkwxMS41NSAtMzYuNzgiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLW9wYWNpdHk9IjAuNDUiLz48cGF0aCBkPSJNLTExLjU1IC0xNi44M0wxMS41NSAtMzAuMiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2Utb3BhY2l0eT0iMC40NSIvPjxwYXRoIGQ9Ik0tMTEuNTUgLTEwLjI1TDExLjU1IC0yMy42MSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2Utb3BhY2l0eT0iMC40NSIvPjxwYXRoIGQ9Ik0tMTEuNTUgLTMuNjZMMi4wNCAtMTEuNTMiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLW9wYWNpdHk9IjAuNDUiLz48cGF0aCBkPSJNNy40NyAtNTEuMzVMMTYuOTggLTU2Ljg2TDE2Ljk4IC01MC4yN1oiIGZpbGw9IiNlY2U5ZTAiLz48L2c+PC9zdmc+",
+        "collection": "isodia",
+        "isIsometric": true
+      },
+      {
+        "id": "function-module",
+        "name": "Function",
+        "url": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMTMuMiIgaGVpZ2h0PSI5NyIgdmlld0JveD0iLTU2LjYgLTYyIDExMy4yIDk3Ij48ZyBmaWxsPSJub25lIiBzdHJva2U9IiMxYjFkMjIiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBzdHJva2UtbGluZWNhcD0icm91bmQiPjxwYXRoIGQ9Ik0wIDE5LjY2TC0zMy45NiAwTC0zMy45NiAtMzkuMTlMMCAtMTkuNTRaIiBmaWxsPSIjZWNlOWUwIi8+PHBhdGggZD0iTTAgMTkuNjZMMzMuOTYgMEwzMy45NiAtMzkuMTlMMCAtMTkuNTRaIiBmaWxsPSIjZDlkNWNhIi8+PHBhdGggZD0iTTAgLTE5LjU0TDMzLjk2IC0zOS4xOUwwIC01OC44NUwtMzMuOTYgLTM5LjE5WiIgZmlsbD0iI2ZmZmZmZiIvPjxwYXRoIGQ9Ik0xMC4xOSAtMTkuMTZMMTQuMjYgLTIxLjUyTDI1LjEzIC0xLjE2IiBzdHJva2Utd2lkdGg9IjQiLz48cGF0aCBkPSJNMTguMzQgLTkuMzhMMTAuMTkgNy40OSIgc3Ryb2tlLXdpZHRoPSI0Ii8+PC9nPjwvc3ZnPg==",
+        "collection": "isodia",
+        "isIsometric": true
+      }
+    ],
+    "colors": [
+      {
+        "id": "color1",
+        "value": "#d1d9ec"
+      },
+      {
+        "id": "color2",
+        "value": "#dcd4ed"
+      },
+      {
+        "id": "color7",
+        "value": "#cde5df"
+      },
+      {
+        "id": "slate",
+        "value": "#80848c"
+      }
+    ]
+  }
+}
