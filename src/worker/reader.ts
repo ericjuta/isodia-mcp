@@ -22,7 +22,11 @@ export default {
     }
     if (pathname.startsWith('/w/') || pathname.startsWith('/api/walkthroughs/')) {
       const reader = new Hono();
-      addWalkthroughRoutes(reader, bundledWalkthroughs(env.ASSETS));
+      addWalkthroughRoutes(reader, bundledWalkthroughs(env.ASSETS), (id) =>
+        id === 'askgina-os-v1'
+          ? ['https://app.notion.com', 'https://www.notion.so']
+          : [],
+      );
       return reader.fetch(request);
     }
     return new Response('Not found.', { status: 404, headers: { 'cache-control': 'no-store' } });
