@@ -29,9 +29,10 @@ export function addWalkthroughRoutes(
     app.get(embed ? '/w/:id/embed' : '/w/:id', async (c) => {
       c.header('cache-control', 'no-store');
       c.header('referrer-policy', 'no-referrer');
-      const story = reader ? await reader.load(c.req.param('id')) : null;
+      const id = c.req.param('id');
+      const story = reader ? await reader.load(id) : null;
       const ancestors = embed && story
-        ? [new URL(story.articleUrl).origin, ...extraFrameOrigins(story.id)].join(' ')
+        ? [new URL(story.articleUrl).origin, ...extraFrameOrigins(id)].join(' ')
         : "'none'";
       c.header('content-security-policy', `frame-ancestors ${ancestors}`);
       if (!story || !reader) return c.text('Walkthrough not available.', 404);
