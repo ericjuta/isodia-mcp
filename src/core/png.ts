@@ -13,10 +13,11 @@ const FONT_FILES = [
 ].map((file) => join(plexDir, file));
 
 /**
- * Rasterise a rendered view. IBM Plex Sans is bundled so the picture does not depend on the
- * host's fonts; system fonts stay available as fallback for scripts Plex lacks.
+ * Rasterise a rendered view with the native renderer (Bun and Docker). IBM Plex Sans is bundled
+ * so the picture does not depend on the host's fonts; system fonts stay available as fallback
+ * for scripts Plex lacks. The Cloudflare Worker uses `src/worker/png.ts` instead.
  */
-export function svgToPng(svg: string, width: number): Uint8Array<ArrayBuffer> {
+export async function svgToPng(svg: string, width: number): Promise<Uint8Array<ArrayBuffer>> {
   const png = new Resvg(svg, {
     fitTo: { mode: 'width', value: width },
     font: { fontFiles: FONT_FILES, loadSystemFonts: true, defaultFontFamily: 'IBM Plex Sans' }

@@ -3,8 +3,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { withReferencedIcons } from '../src/core/icons';
+import { svgToPng } from '../src/core/png';
 import { parseModel } from '../src/core/schema';
 import { createMcpServer } from '../src/server/mcp';
+import { openSqlite } from '../src/server/sqlite';
 import { Store } from '../src/server/store';
 
 const CHECKOUT = {
@@ -22,11 +24,11 @@ const CHECKOUT = {
 
 /** A real MCP client talking to the server over an in-memory transport. */
 async function connect() {
-  const store = new Store(':memory:');
+  const store = new Store(openSqlite(':memory:'));
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'test-agent', version: '0.0.0' });
   await Promise.all([
-    createMcpServer(store, { publicUrl: 'https://diagrams.test' }).connect(serverTransport),
+    createMcpServer(store, { publicUrl: 'https://diagrams.test', rasterize: svgToPng }).connect(serverTransport),
     client.connect(clientTransport)
   ]);
   const call = async (name: string, args: Record<string, unknown> = {}): Promise<CallToolResult> =>

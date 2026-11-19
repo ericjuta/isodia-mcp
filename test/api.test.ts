@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import { createApp } from '../src/server/api';
 import { emptyModel } from '../src/core/model';
+import { svgToPng } from '../src/core/png';
 import { assertSafeToListen, loadConfig } from '../src/server/config';
+import { openSqlite } from '../src/server/sqlite';
 import { Store } from '../src/server/store';
 
 const json = (body: unknown, headers: Record<string, string> = {}): RequestInit => ({
@@ -11,8 +13,8 @@ const json = (body: unknown, headers: Record<string, string> = {}): RequestInit 
 });
 
 test('with a token configured the API refuses anonymous calls, while a share link stays public', async () => {
-  const store = new Store(':memory:');
-  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: 'secret' });
+  const store = new Store(openSqlite(':memory:'));
+  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: 'secret', rasterize: svgToPng });
   const { id } = store.createProject({ name: 'Shop' }, 'api');
   const { token } = store.createShareLink(id);
   const authorized = { authorization: 'Bearer secret' };
@@ -29,15 +31,15 @@ test('with a token configured the API refuses anonymous calls, while a share lin
 });
 
 test('the health route answers without the token and says nothing about projects', async () => {
-  const app = createApp(new Store(':memory:'), { publicUrl: 'https://diagrams.test', token: 'secret' });
+  const app = createApp(new Store(openSqlite(':memory:')), { publicUrl: 'https://diagrams.test', token: 'secret', rasterize: svgToPng });
   const response = await app.request('/healthz');
   expect(response.status).toBe(200);
   expect(await response.text()).toBe('ok');
 });
 
 test('a custom icon must carry its picture inline: paths and remote addresses are refused', async () => {
-  const store = new Store(':memory:');
-  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: undefined });
+  const store = new Store(openSqlite(':memory:'));
+  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: undefined, rasterize: svgToPng });
   const withIcon = (url: string) => ({
     name: 'Leak',
     model: { ...emptyModel('Leak'), icons: [{ id: 'x', name: 'X', url }], items: [{ id: 'a', name: 'A', icon: 'x' }] }
@@ -48,6 +50,34 @@ test('a custom icon must carry its picture inline: paths and remote addresses ar
   }
   expect(store.listProjects()).toEqual([]);
   expect((await app.request('/api/projects', json(withIcon('data:image/png;base64,AAAA')))).status).toBe(201);
+});
+
+test('a networked host without a token keeps private routes closed while public ones still answer', async () => {
+  const store = new Store(openSqlite(':memory:'));
+  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: undefined, requireToken: true, rasterize: svgToPng });
+  const { id } = store.createProject({ name: 'Shop' }, 'api');
+  const { token } = store.createShareLink(id);
+
+  for (const [path, init] of [['/api/projects'], ['/api/info'], [`/api/projects/${id}`], ['/mcp', json({})]] as const) {
+    const closed = await app.request(path, init);
+    expect(closed.status).toBe(503);
+    expect(await closed.json()).toEqual({ error: expect.stringContaining('ISODIA_TOKEN') });
+  }
+  expect((await app.request('/healthz')).status).toBe(200);
+  expect((await app.request(`/api/shared/${token}`)).status).toBe(200);
+});
+
+test('connection details offer stdio only where the host can start it', async () => {
+  const config = { publicUrl: 'https://diagrams.test', token: undefined, rasterize: svgToPng };
+  const remote = await (await createApp(new Store(openSqlite(':memory:')), config).request('/api/info')).json();
+  expect(remote).toEqual({ version: expect.any(String), mcpUrl: 'https://diagrams.test/mcp', tokenRequired: false });
+
+  const stdio = { command: 'bun', args: ['/srv/isodia/src/server/mcp-stdio.ts'] };
+  const local = await (await createApp(new Store(openSqlite(':memory:')), { ...config, stdio }).request('/api/info')).json();
+  expect(local).toMatchObject({
+    stdioCommand: 'bun /srv/isodia/src/server/mcp-stdio.ts',
+    stdio: { ...stdio, env: { ISODIA_URL: 'https://diagrams.test' } }
+  });
 });
 
 test('the server is local by default and will not serve other machines without a token', () => {
@@ -66,8 +96,8 @@ test('development links use the web port without changing the API listener or pr
 });
 
 test('an editor save against a stale revision gets 409 with the current revision, and is not applied', async () => {
-  const store = new Store(':memory:');
-  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: undefined });
+  const store = new Store(openSqlite(':memory:'));
+  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: undefined, rasterize: svgToPng });
   const project = store.createProject({ name: 'Shop' }, 'api');
   await app.request(`/api/projects/${project.id}/operations`, json({ operations: [{ op: 'add_item', name: 'Agent item' }] }));
 
@@ -83,8 +113,8 @@ test('an editor save against a stale revision gets 409 with the current revision
 });
 
 test('bad input is a 400 that says what is wrong, not a 500', async () => {
-  const store = new Store(':memory:');
-  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: undefined });
+  const store = new Store(openSqlite(':memory:'));
+  const app = createApp(store, { publicUrl: 'https://diagrams.test', token: undefined, rasterize: svgToPng });
   const { id } = store.createProject({ name: 'Shop' }, 'api');
 
   const unknownIcon = await app.request(

@@ -9,7 +9,11 @@ An operator can run the same editor, live shares, published walkthrough reader a
 ## Progress
 
 - [x] Inventory Bun-specific storage, asset serving, rasterization and filesystem publication; create map and child tickets.
-- [ ] #14: Extract shared HTTP, storage, error and PNG contracts. Keep route and model semantics unchanged.
+- [x] #14: Extract shared HTTP, storage, error and PNG contracts. Keep route and model semantics unchanged.
+  - `Store` takes a synchronous `SqlDatabase` (`src/server/sql.ts`); `openSqlite` (`src/server/sqlite.ts`) keeps the Bun pragmas and `BEGIN IMMEDIATE`. Share tokens come from Web Crypto and revocation uses `DELETE … RETURNING` instead of Bun's change count.
+  - `createApp` receives `rasterize`, optional `stdio` and an optional `WalkthroughReader`; it no longer reads files or uses `Buffer`, `node:crypto` or `import.meta.dir`. Disk reads and static serving moved to `src/server/disk.ts`. The bearer comparison is a portable constant-time loop.
+  - `requireToken` closes private APIs and MCP with 503 while no token is set; `/healthz`, `/api/shared/*` and published walkthroughs stay public. `StorageLimitError` maps to 413.
+  - Evidence (2026-11-19): focused Bun tests for store, API, MCP, walkthroughs and render passed (38 tests); `scripts/onboarding-browser-check.ts` passed in Chromium. The local embed check could not run against the stale `dist/` from 2026-11-11 (no reader page in that build); CI builds `dist/` first.
 - [ ] #15: Wire one SQLite Durable Object, Worker Static Assets, deploy-time reviewed walkthrough assets and WASM rasterization.
 - [ ] #16: Prove runtime parity and document deployment, migration, backups and rollback.
 

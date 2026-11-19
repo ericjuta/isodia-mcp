@@ -62,7 +62,9 @@ try {
   assert.equal(await (await ready(`${api}/healthz`)).text(), 'ok');
   const info: ServerInfo = await (await ready(`${web}/api/info`)).json();
   assert.equal(info.mcpUrl, `${web}/mcp`);
+  assert.ok(info.stdio, 'the Bun server offers stdio MCP');
   assert.equal(info.stdio.env.ISODIA_URL, web);
+  const launch = info.stdio;
 
   await client.connect(new StreamableHTTPClientTransport(new URL(`${api}/mcp`)));
   assert.ok((await client.listTools()).tools.some((tool) => tool.name === 'build_diagram'));
@@ -86,7 +88,7 @@ try {
   } finally {
     await proxy.close();
   }
-  await stdio.connect(new StdioClientTransport({ ...info.stdio, env: { ...info.stdio.env, ISODIA_DB: database } }));
+  await stdio.connect(new StdioClientTransport({ ...launch, env: { ...launch.env, ISODIA_DB: database } }));
   assert.deepEqual(await json(stdio, 'list_projects'), await json(client, 'list_projects'));
   console.log('PASS: custom ports, HTTP MCP direct and proxied, and stdio links to the same project');
 

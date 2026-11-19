@@ -39,7 +39,8 @@ export interface SharedProject {
 export interface ServerInfo {
   version: string;
   mcpUrl: string;
-  stdio: { command: string; args: string[]; env: { ISODIA_URL: string } };
+  /** Absent where no agent can share the server's machine, as on Cloudflare. */
+  stdio?: { command: string; args: string[]; env: { ISODIA_URL: string } };
   tokenRequired: boolean;
 }
 
