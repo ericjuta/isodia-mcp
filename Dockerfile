@@ -50,7 +50,7 @@ RUN bun -e "const { parseModel } = await import('./src/core/schema.ts'); \
   const { renderViewSvg } = await import('./src/core/render.ts'); \
   const { svgToPng } = await import('./src/core/png.ts'); \
   const drawn = { ...good, items: [{ id: 'a', name: 'A', icon: 'server' }], views: [{ ...good.views[0], items: [{ id: 'a', tile: { x: 0, y: 0 } }] }] }; \
-  if (svgToPng(renderViewSvg(drawn, drawn.views[0]).svg, 400).length < 1000) throw new Error('rendering is broken'); \
+  if ((await svgToPng(renderViewSvg(drawn, drawn.views[0]).svg, 400)).length < 1000) throw new Error('rendering is broken'); \
   console.log('schema and render check passed');"
 
 # SQLite lives on a volume so projects survive a container replacement.

@@ -2,9 +2,12 @@ import { expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { svgToPng } from '../src/core/png';
 import { parseWalkthrough, prepareWalkthrough, WALKTHROUGH_MAX_BYTES } from '../src/core/walkthrough';
 import { createApp } from '../src/server/api';
 import { loadConfig } from '../src/server/config';
+import { diskWalkthroughs } from '../src/server/disk';
+import { openSqlite } from '../src/server/sqlite';
 import { Store } from '../src/server/store';
 
 const model = {
@@ -60,12 +63,12 @@ test('refuses broken step references, invalid article origins and unprojected or
 
 test('publication routes are read-only, isolated from projects, frame-scoped and withdrawable', async () => {
   const root = mkdtempSync(join(tmpdir(), 'isodia-publication-'));
-  const store = new Store(':memory:');
+  const store = new Store(openSqlite(':memory:'));
   try {
     const project = store.createProject({ name: 'Private live project' }, 'api');
     const privateShare = store.createShareLink(project.id);
-    const config = { publicUrl: 'https://diagrams.example', token: 'secret', webRoot: root };
-    const app = createApp(store, { ...config, walkthroughsRoot: root });
+    const config = { publicUrl: 'https://diagrams.example', token: 'secret', rasterize: svgToPng };
+    const app = createApp(store, { ...config, walkthroughs: diskWalkthroughs(root, root) });
     const snapshot = prepareWalkthrough(model, manifest);
     writeFileSync(join(root, 'index.html'), '<title>Reader shell</title>');
     writeFileSync(join(root, 'checkout-v1.json'), JSON.stringify(snapshot));
@@ -73,7 +76,8 @@ test('publication routes are read-only, isolated from projects, frame-scoped and
     writeFileSync(join(root, 'oversize.json'), ' '.repeat(WALKTHROUGH_MAX_BYTES + 1));
     symlinkSync(join(root, 'checkout-v1.json'), join(root, 'alias.json'));
     expect(loadConfig({ ISODIA_WALKTHROUGHS_DIR: root }).walkthroughsRoot).toBe(root);
-    expect((await createApp(store, config).request('/api/walkthroughs/checkout-v1')).status).toBe(404);
+    const unpublished = createApp(store, { ...config, walkthroughs: diskWalkthroughs(undefined, root) });
+    expect((await unpublished.request('/api/walkthroughs/checkout-v1')).status).toBe(404);
     expect((await app.request(`/api/projects/${project.id}`)).status).toBe(401);
     expect((await app.request(`/api/shared/${privateShare.token}`)).status).toBe(200);
     const data = await app.request('/api/walkthroughs/checkout-v1');
@@ -100,7 +104,6 @@ test('publication routes are read-only, isolated from projects, frame-scoped and
     expect(withdrawn.status).toBe(404);
     expect(withdrawn.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
   } finally {
-    store.close();
     rmSync(root, { recursive: true, force: true });
   }
 });

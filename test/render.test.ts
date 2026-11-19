@@ -59,14 +59,14 @@ test('the rendered picture frames every item', () => {
   }
 });
 
-test('names with markup characters render as text, and the PNG has the requested width', () => {
+test('names with markup characters render as text, and the PNG has the requested width', async () => {
   const { model } = applyOperations(emptyModel('Escapes'), undefined, [
     { op: 'add_item', name: 'A <b> & "c"', tile: { x: 0, y: 0 } },
     { op: 'add_text', content: '</svg><script>', tile: { x: 0, y: 2 } }
   ]);
 
   const { svg } = renderViewSvg(model, model.views[0]);
-  const png = Buffer.from(svgToPng(svg, 640));
+  const png = Buffer.from(await svgToPng(svg, 640));
 
   expect(svg).toContain('A &lt;b&gt; &amp; &quot;c&quot;');
   expect(svg).not.toContain('<script>');
@@ -116,7 +116,7 @@ test('two connector labels never share a tile', () => {
   expect(new Set(positions).size).toBe(2);
 });
 
-test('an empty or whitespace-only label leaves the picture intact', () => {
+test('an empty or whitespace-only label leaves the picture intact', async () => {
   // A label wrapping to no lines once produced rect x="Infinity" width="-Infinity", which made the
   // whole viewBox NaN: every item disappeared, not just the label.
   const { model } = applyOperations(emptyModel('Blank labels'), undefined, [
@@ -133,5 +133,5 @@ test('an empty or whitespace-only label leaves the picture intact', () => {
   // The items themselves still render.
   expect(svg).toContain('>A</text>');
   expect(svg).toContain('>B</text>');
-  expect(Buffer.from(svgToPng(svg, 640)).subarray(1, 4).toString('latin1')).toBe('PNG');
+  expect(Buffer.from(await svgToPng(svg, 640)).subarray(1, 4).toString('latin1')).toBe('PNG');
 });

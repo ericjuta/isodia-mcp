@@ -1,5 +1,3 @@
-import { timingSafeEqual } from 'node:crypto';
-import { join, sep } from 'node:path';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { Hono, type MiddlewareHandler } from 'hono';
 import { z } from 'zod';
@@ -7,21 +5,32 @@ import pkg from '../../package.json';
 import { searchIcons, withReferencedIcons } from '../core/icons';
 import { applyOperations, buildDiagram, DiagramError, findView } from '../core/model';
 import { diagramSpecSchema, operationSchema } from '../core/operations';
-import { svgToPng } from '../core/png';
 import { renderViewSvg } from '../core/render';
 import { ModelValidationError } from '../core/schema';
 import type { Model } from '../core/types';
-import { createMcpServer } from './mcp';
-import { addWalkthroughRoutes } from './walkthroughs';
+import { createMcpServer, type Rasterize } from './mcp';
+import { StorageLimitError } from './sql';
+import { addWalkthroughRoutes, type WalkthroughReader } from './walkthroughs';
 import { ConflictError, NotFoundError, type Store } from './store';
 
+/**
+ * Everything the HTTP app needs from its host. The shared app holds no runtime-specific code:
+ * Bun and the Cloudflare Worker each supply their own rasteriser and publication reader.
+ */
 export interface AppConfig {
   publicUrl: string;
   /** When set, private APIs and MCP require it as a bearer token. */
   token: string | undefined;
-  /** Directory holding the built web app; omitted when only the API is wanted. */
-  webRoot?: string;
-  walkthroughsRoot?: string;
+  /**
+   * Refuse private APIs and MCP while no token is set, instead of opening them. Set it where
+   * every request comes from the network.
+   */
+  requireToken?: boolean;
+  rasterize: Rasterize;
+  /** How an agent on this machine starts the stdio MCP server; omitted where none can run. */
+  stdio?: { command: string; args: string[] };
+  /** Published walkthroughs; omitted where this app does not serve them. */
+  walkthroughs?: WalkthroughReader;
 }
 
 const createSchema = z.object({
@@ -42,28 +51,37 @@ const iconQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional()
 });
 
+/**
+ * Compare in time that depends only on the lengths, so response timing does not reveal how much
+ * of a guess was right.
+ */
 function bearerMatches(header: string | undefined, token: string): boolean {
-  const expected = Buffer.from(`Bearer ${token}`);
-  const given = Buffer.from(header ?? '');
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
-
-function renderResponse(model: Model, query: Record<string, string>): Response {
-  const { view, format, width } = renderSchema.parse(query);
-  const { svg } = renderViewSvg(model, findView(model, view));
-  return format === 'svg'
-    ? new Response(svg, { headers: { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'no-store' } })
-    : new Response(svgToPng(svg, width), { headers: { 'content-type': 'image/png', 'cache-control': 'no-store' } });
+  const encoder = new TextEncoder();
+  const expected = encoder.encode(`Bearer ${token}`);
+  const given = encoder.encode(header ?? '');
+  if (given.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < expected.length; index += 1) difference |= expected[index] ^ given[index];
+  return difference === 0;
 }
 
 export function createApp(store: Store, config: AppConfig): Hono {
   const app = new Hono();
+
+  const renderResponse = async (model: Model, query: Record<string, string>): Promise<Response> => {
+    const { view, format, width } = renderSchema.parse(query);
+    const { svg } = renderViewSvg(model, findView(model, view));
+    return format === 'svg'
+      ? new Response(svg, { headers: { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'no-store' } })
+      : new Response(await config.rasterize(svg, width), { headers: { 'content-type': 'image/png', 'cache-control': 'no-store' } });
+  };
 
   app.onError((error, c) => {
     if (error instanceof NotFoundError) return c.json({ error: error.message }, 404);
     if (error instanceof ConflictError) {
       return c.json({ error: error.message, currentRevision: error.currentRevision }, 409);
     }
+    if (error instanceof StorageLimitError) return c.json({ error: error.message }, 413);
     if (error instanceof z.ZodError) return c.json({ error: z.prettifyError(error) }, 400);
     if (error instanceof DiagramError || error instanceof ModelValidationError || error instanceof SyntaxError) {
       return c.json({ error: error.message }, 400);
@@ -72,9 +90,12 @@ export function createApp(store: Store, config: AppConfig): Hono {
     return c.json({ error: 'Internal server error.' }, 500);
   });
 
-  if (config.token !== undefined) {
+  if (config.token !== undefined || config.requireToken) {
     const token = config.token;
     const guard: MiddlewareHandler = async (c, next) => {
+      if (token === undefined) {
+        return c.json({ error: 'Private APIs and MCP stay closed until the workspace token (ISODIA_TOKEN) is set.' }, 503);
+      }
       if (!bearerMatches(c.req.header('authorization'), token)) {
         return c.json({ error: 'A valid bearer token is required.' }, 401);
       }
@@ -90,12 +111,14 @@ export function createApp(store: Store, config: AppConfig): Hono {
 
   /** What the web app shows under "Connect an agent". */
   app.get('/api/info', (c) => {
-    const entry = join(import.meta.dir, 'mcp-stdio.ts');
+    const { stdio } = config;
     return c.json({
       version: pkg.version,
       mcpUrl: `${config.publicUrl}/mcp`,
-      stdioCommand: `bun ${entry}`,
-      stdio: { command: 'bun', args: [entry], env: { ISODIA_URL: config.publicUrl } },
+      ...(stdio && {
+        stdioCommand: [stdio.command, ...stdio.args].join(' '),
+        stdio: { ...stdio, env: { ISODIA_URL: config.publicUrl } }
+      }),
       tokenRequired: config.token !== undefined
     });
   });
@@ -214,30 +237,16 @@ export function createApp(store: Store, config: AppConfig): Hono {
       sessionIdGenerator: undefined,
       enableJsonResponse: true
     });
-    await createMcpServer(store, { publicUrl: config.publicUrl }).connect(transport);
+    await createMcpServer(store, { publicUrl: config.publicUrl, rasterize: config.rasterize }).connect(transport);
     return transport.handleRequest(c.req.raw);
   });
   app.on(['GET', 'DELETE'], '/mcp', (c) =>
     c.json({ jsonrpc: '2.0', error: { code: -32000, message: 'This endpoint is stateless; use POST.' }, id: null }, 405)
   );
 
-  addWalkthroughRoutes(app, config.walkthroughsRoot, config.webRoot);
+  addWalkthroughRoutes(app, config.walkthroughs);
 
   app.all('/api/*', (c) => c.json({ error: 'Not found.' }, 404));
-
-  if (config.webRoot !== undefined) {
-    const root = config.webRoot;
-    // The web app is a single page: real files are served as-is, every other path gets the shell.
-    app.get('*', async (c) => {
-      const asset = Bun.file(join(root, decodeURIComponent(c.req.path)));
-      if (asset.name?.startsWith(root + sep) && (await asset.exists()) && asset.size > 0) {
-        return new Response(asset);
-      }
-      const shell = Bun.file(join(root, 'index.html'));
-      if (await shell.exists()) return new Response(shell);
-      return c.text('No built web app on this port. For local development, run `bun run dev:web` and open its address. For a single-server deployment, build the web app first.', 503);
-    });
-  }
 
   return app;
 }

@@ -16,11 +16,17 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      CF_SEND_TELEMETRY: "false"
     steps:
       - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
+      # cf, and Vite with the Cloudflare plugin, run on Node.js 22.18 or later, not on Bun.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun test
@@ -34,3 +40,13 @@ jobs:
         env:
           CHROME_PATH: /usr/bin/google-chrome
         run: bun scripts/walkthrough-browser-check.ts
+      - name: Prove the built Cloudflare Worker in workerd
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: bun scripts/worker-runtime-check.ts --built
+      # Validates the Build Output without credentials or uploads, then reports bundle size and
+      # local startup time. Nothing is deployed.
+      - name: Validate the Worker build for deployment
+        run: |
+          ./node_modules/.bin/cf deploy --dry-run --prebuilt --mode production
+          ./node_modules/.bin/cf workers check --prebuilt --mode production --outfile "$RUNNER_TEMP/worker-startup.cpuprofile"

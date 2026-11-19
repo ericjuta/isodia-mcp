@@ -4,8 +4,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer-core';
+import { svgToPng } from '../src/core/png';
 import { prepareWalkthrough } from '../src/core/walkthrough';
 import { createApp } from '../src/server/api';
+import { diskWalkthroughs, serveWebApp } from '../src/server/disk';
+import { openSqlite } from '../src/server/sqlite';
 import { Store } from '../src/server/store';
 import model from '../docs/sample/walkthrough/checkout.isoflow.json';
 import manifest from '../docs/sample/walkthrough/checkout.walkthrough.json';
@@ -13,14 +16,17 @@ import manifest from '../docs/sample/walkthrough/checkout.walkthrough.json';
 const executablePath = process.env.CHROME_PATH;
 if (!executablePath) throw new Error('Set CHROME_PATH to the Chromium executable.');
 const root = await mkdtemp(join(tmpdir(), 'isodia-walkthrough-browser-'));
-const store = new Store(':memory:');
+const store = new Store(openSqlite(':memory:'));
 const path = '/w/checkout-architecture-v1';
 const step = `${path}?step=charge-once`;
 const embed = `${path}/embed?step=charge-once`;
-const reader = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: createApp(store, {
-  publicUrl: 'http://127.0.0.1', token: 'scratch-browser-test', walkthroughsRoot: root,
-  webRoot: join(import.meta.dir, '../dist')
-}).fetch });
+const webRoot = join(import.meta.dir, '../dist');
+const app = createApp(store, {
+  publicUrl: 'http://127.0.0.1', token: 'scratch-browser-test', rasterize: svgToPng,
+  walkthroughs: diskWalkthroughs(root, webRoot)
+});
+serveWebApp(app, webRoot);
+const reader = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: app.fetch });
 const readerOrigin = reader.url.origin;
 const article = (framePath: string) => Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response(
   `<meta name="viewport" content="width=device-width, initial-scale=1"><iframe title="Checkout walkthrough" src="${readerOrigin}${framePath}" width="100%" height="560" style="border:0"></iframe>`,
@@ -117,6 +123,5 @@ try {
   }
 } finally {
   await Promise.all([reader.stop(true), approved.stop(true), other.stop(true)]);
-  store.close();
   await rm(root, { recursive: true, force: true });
 }

@@ -2,12 +2,13 @@ import { expect, test } from 'bun:test';
 import { catalogIcon } from '../src/core/icons';
 import { ModelValidationError } from '../src/core/schema';
 import type { Model } from '../src/core/types';
+import { openSqlite } from '../src/server/sqlite';
 import { ConflictError, NotFoundError, type RevisionSource, Store } from '../src/server/store';
 
 function open(): { store: Store; advance(ms: number): void } {
   let time = Date.parse('2026-01-01T00:00:00Z');
   return {
-    store: new Store(':memory:', { now: () => new Date(time) }),
+    store: new Store(openSqlite(':memory:'), { now: () => new Date(time) }),
     advance: (ms) => {
       time += ms;
     }

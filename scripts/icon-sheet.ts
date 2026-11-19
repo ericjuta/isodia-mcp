@@ -40,5 +40,5 @@ const small = section(48, 10 + large.height);
 const width = 113 * 1.5 * COLUMNS;
 const height = 10 + large.height + small.height;
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="${FONT_FAMILY}"><rect width="${width}" height="${height}" fill="${PAPER}"/>${large.markup}${small.markup}</svg>`;
-await Bun.write(out, svgToPng(svg, width));
+await Bun.write(out, await svgToPng(svg, width));
 console.log(`${ICON_CATALOG.length} icons -> ${out}`);

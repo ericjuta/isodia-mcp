@@ -188,6 +188,13 @@ Serve the diagrams origin over HTTPS, or an HTTPS article will refuse to load th
 reverse proxy sets its own frame policy, make sure it preserves the app's `frame-ancestors`
 policy and does not add `X-Frame-Options` or another policy that blocks the article on `/embed`.
 
+### On Cloudflare
+
+The Worker reads `ISODIA_WALKTHROUGHS_DIR` when it is built, not while it runs. Each file is
+checked with the same rules as above, and an invalid file stops the build. Copying a file in or
+removing it takes effect with the next deploy, and rolling back to an older version brings back
+what that version published. See [Publish and withdraw walkthroughs](cloudflare.md#publish-and-withdraw-walkthroughs).
+
 ## 6. Link and embed
 
 With `ISODIA_URL=https://diagrams.example.com`, the publication has three addresses:

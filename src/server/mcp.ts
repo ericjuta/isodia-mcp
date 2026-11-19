@@ -6,9 +6,11 @@ import { describeView } from '../core/describe';
 import { searchIcons, withReferencedIcons } from '../core/icons';
 import { applyOperations, buildDiagram, createView, deleteView, findView, updateView } from '../core/model';
 import { diagramSpecSchema, operationSchema } from '../core/operations';
-import { svgToPng } from '../core/png';
 import { renderViewSvg } from '../core/render';
 import type { Store } from './store';
+
+/** Turn a rendered view into PNG bytes `width` pixels wide. Each runtime supplies its own. */
+export type Rasterize = (svg: string, width: number) => Promise<Uint8Array<ArrayBuffer>>;
 
 const INSTRUCTIONS = `Isometric architecture and network diagrams. Models use the open Isoflow JSON format.
 A project holds a shared set of items plus one or more views that place those items on a tile grid, so one model can back several diagrams.
@@ -27,7 +29,7 @@ const project = z.string().describe('Project id, as returned by list_projects.')
 const view = z.string().optional().describe('View id or name. Defaults to the first view.');
 
 /** Register the diagram tools against `store`. `publicUrl` is where the web app is reachable. */
-export function createMcpServer(store: Store, options: { publicUrl: string }): McpServer {
+export function createMcpServer(store: Store, options: { publicUrl: string; rasterize: Rasterize }): McpServer {
   const server = new McpServer({ name: 'isodia', version: pkg.version }, { instructions: INSTRUCTIONS });
   const editorUrl = (projectId: string, viewId?: string): string =>
     `${options.publicUrl}/p/${projectId}${viewId === undefined ? '' : `?view=${encodeURIComponent(viewId)}`}`;
@@ -178,15 +180,21 @@ export function createMcpServer(store: Store, options: { publicUrl: string }): M
       },
       annotations: { readOnlyHint: true, openWorldHint: false }
     },
-    ({ project: projectId, view: viewRef, format, width }) => {
+    async ({ project: projectId, view: viewRef, format, width }) => {
       const current = store.getProject(projectId);
       const target = findView(current.model, viewRef);
       const rendered = renderViewSvg(current.model, target);
       if (format === 'svg') return text(rendered.svg);
-      const png = svgToPng(rendered.svg, width ?? 1400);
+      const png = await options.rasterize(rendered.svg, width ?? 1400);
+      // btoa takes a binary string. Build it in chunks: spreading a whole picture into one call
+      // would exceed the engine's argument limit.
+      let binary = '';
+      for (let start = 0; start < png.length; start += 0x8000) {
+        binary += String.fromCharCode(...png.subarray(start, start + 0x8000));
+      }
       return {
         content: [
-          { type: 'image', data: Buffer.from(png).toString('base64'), mimeType: 'image/png' },
+          { type: 'image', data: btoa(binary), mimeType: 'image/png' },
           { type: 'text', text: `View "${target.name}" of project "${current.name}" at revision ${current.revision}.` }
         ]
       };

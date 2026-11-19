@@ -223,7 +223,7 @@ export function ExportPanel(props: { projectId: string; viewId: string }) {
 export function AgentPanel(props: { projectId: string }) {
   const { value: info, error } = useAsync(useCallback(() => api.info(), []));
   const http = info && JSON.stringify({ mcpServers: { 'isodia': { type: 'http', url: info.mcpUrl } } }, null, 2);
-  const stdio = info && JSON.stringify({ mcpServers: { 'isodia': info.stdio } }, null, 2);
+  const stdio = info?.stdio && JSON.stringify({ mcpServers: { 'isodia': info.stdio } }, null, 2);
 
   return (
     <section className="panel-body">
@@ -237,9 +237,13 @@ export function AgentPanel(props: { projectId: string }) {
           <h3>Over HTTP</h3>
           <Snippet text={http ?? ''} />
           {info.tokenRequired && <p className="meta">Send the workspace token as an Authorization: Bearer header.</p>}
-          <h3>Over stdio, on this machine</h3>
-          <Snippet text={stdio ?? ''} />
-          <p className="meta">Use this on the server's machine. If you set ISODIA_DB, add the same absolute path to env.</p>
+          {stdio && (
+            <>
+              <h3>Over stdio, on this machine</h3>
+              <Snippet text={stdio} />
+              <p className="meta">Use this on the server's machine. If you set ISODIA_DB, add the same absolute path to env.</p>
+            </>
+          )}
           <h3>Try asking</h3>
           <Snippet
             text={`Use isodia to add a Redis cache to the "${props.projectId}" project and connect the API to it, then show me the result.`}
