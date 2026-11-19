@@ -25,9 +25,12 @@
     "scripts/prepare-walkthrough.ts",
     "scripts/onboarding-browser-check.ts",
     "web/vite.config.ts",
+    "vite.config.ts",
     "scripts/walkthrough-browser-check.ts",
+    "scripts/worker-runtime-check.ts",
     "web/src",
     "examples",
     "test"
-  ]
+  ],
+  "exclude": ["src/worker"]
 }
