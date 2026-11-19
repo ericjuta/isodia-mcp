@@ -74,6 +74,8 @@ jobs:
       - name: Build and validate the reader Worker for deployment
         working-directory: deploy/askgina-os-walkthrough
         run: |
+          # The reader project shares the repository's dependencies; cf looks for them here.
+          ln -s ../../node_modules node_modules
           ../../node_modules/.bin/cf build
           ../../node_modules/.bin/cf deploy --dry-run --prebuilt
           ../../node_modules/.bin/cf workers check --prebuilt
