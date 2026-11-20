@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { Hono } from 'hono';
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { loadConfig } from '../src/server/config';
 import { diskWalkthroughs } from '../src/server/disk';
 import { openSqlite } from '../src/server/sqlite';
 import { Store } from '../src/server/store';
+import { addWalkthroughRoutes } from '../src/server/walkthroughs';
 
 const model = {
   title: 'Private checkout title',
@@ -93,7 +95,7 @@ test('publication routes are read-only, isolated from projects, frame-scoped and
     expect(embed.status).toBe(200);
     expect(embed.headers.get('content-security-policy')).toBe('frame-ancestors https://blog.example:8443');
     expect(embed.headers.get('referrer-policy')).toBe('no-referrer');
-    expect(await embed.text()).toContain('Reader shell');
+    expect(await embed.text()).toBe('<title>Reader shell</title>');
     const full = await app.request('/w/checkout-v1?step=work');
     expect(full.status).toBe(200);
     expect(full.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
@@ -105,6 +107,64 @@ test('publication routes are read-only, isolated from projects, frame-scoped and
     expect(withdrawn.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('step links use step social cards only when a matching card is available', async () => {
+  const review = { id: 'review', title: 'Review "<work>" $&', body: `Check & confirm. ${'more '.repeat(50)}`, view: 'overview' };
+  const story = prepareWalkthrough(model, { ...manifest, steps: [step, review] });
+  const shell = '<!doctype html><title>Reader shell</title><div id="root"></div>';
+  const app = new Hono();
+  const stepLookups: string[] = [];
+  addWalkthroughRoutes(app, {
+    load: async () => story,
+    shell: async () => new Response(shell).body
+  }, undefined, (id, stepId) => {
+    if (stepId === undefined) return `/og-${id}.png`;
+    stepLookups.push(stepId);
+    if (stepId === review.id) return `/og/${id}/${stepId}.png`;
+  });
+
+  const base = 'https://diagrams.example/w/checkout-v1';
+  const deepLink = `${base}?step=review`;
+  const selected = await app.request(`${deepLink}&utm_source=share`);
+  expect(selected.status).toBe(200);
+  const html = await selected.text();
+  const image = 'https://diagrams.example/og/checkout-v1/review.png';
+  const title = 'Review &quot;&lt;work&gt;&quot; $&amp; · How checkout works';
+  const description = `${review.body.slice(0, 197).trimEnd().replaceAll('&', '&amp;')}...`;
+  expect(html).toContain(`<meta property="og:image" content="${image}" />`);
+  expect(html).toContain(`<meta property="og:image:width" content="1200" />`);
+  expect(html).toContain(`<meta property="og:image:height" content="630" />`);
+  expect(html).toContain(`<meta property="og:title" content="${title}" />`);
+  expect(html).toContain(`<meta property="og:description" content="${description}" />`);
+  expect(html).toContain(`<meta property="og:url" content="${deepLink}" />`);
+  expect(html).toContain(`<link rel="canonical" href="${base}" />`);
+  expect(html).toContain(`<meta name="twitter:card" content="summary_large_image" />`);
+  expect(html).toContain(`<meta name="twitter:image" content="${image}" />`);
+  expect(html).toContain(`<meta name="twitter:title" content="${title}" />`);
+  expect(html).toContain(`<meta name="twitter:description" content="${description}" />`);
+
+  const overview = await (await app.request(base)).text();
+  expect(overview).toContain(`<meta property="og:image" content="https://diagrams.example/og-checkout-v1.png" />`);
+  expect(overview).toContain(`<meta property="og:title" content="${story.title}" />`);
+  expect(overview).toContain(`<meta property="og:description" content="${step.body}" />`);
+  expect(overview).toContain(`<meta property="og:url" content="${base}" />`);
+  expect(overview).not.toContain('og:image:width');
+  expect(await (await app.request(`${base}?step=unknown`)).text()).toBe(overview);
+  expect(await (await app.request(`${base}?step=work`)).text()).toBe(overview);
+  expect(await (await app.request(`${base}/embed?step=review`)).text()).toBe(shell);
+  expect(stepLookups).toEqual(['review', 'work']);
+});
+
+test('every published Ask Gina step has a 1200x630 PNG card', () => {
+  const deployment = new URL('../deploy/askgina-os-walkthrough/', import.meta.url);
+  const story = parseWalkthrough(JSON.parse(readFileSync(new URL('publications/askgina-os-v1.json', deployment), 'utf8')));
+  for (const { id } of story.steps) {
+    const png = readFileSync(new URL(`public/og/askgina-os-v1/${id}.png`, deployment));
+    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    expect(png.subarray(12, 16).toString('ascii')).toBe('IHDR');
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630]);
   }
 });
 

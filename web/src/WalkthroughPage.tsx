@@ -1,16 +1,26 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { htmlToText } from '../../src/core/text';
 import type { Walkthrough } from '../../src/core/walkthrough';
 import { Brand, Mark } from './ui';
+import { registerWalkthroughTools } from './walkthrough-webmcp';
 
 const Diagram = lazy(() => import('./Diagram'));
 
 const stepFromLocation = () => new URLSearchParams(window.location.search).get('step');
 const stepUrl = (path: string, step: string) => `${path}?${new URLSearchParams({ step })}`;
+const stepHeadingId = 'walkthrough-step-heading';
+const stepProgressId = 'walkthrough-step-progress';
 
-type Step = Walkthrough['steps'][number];
-
-function StepReader({ story, step, focusOnEntry }: { story: Walkthrough; step: Step; focusOnEntry: boolean }) {
+function StepReader({ story, stepIndex, path, go, focusOnEntry }: {
+  story: Walkthrough;
+  stepIndex: number;
+  path: string;
+  go(event: MouseEvent<HTMLAnchorElement>, to: string): void;
+  focusOnEntry: boolean;
+}) {
+  const step = story.steps[stepIndex];
+  const previous = story.steps[stepIndex - 1];
+  const next = story.steps[stepIndex + 1];
   const [viewId, setViewId] = useState(step.view);
   const [component, setComponent] = useState<string | null>(step.component ?? null);
   const [reset, setReset] = useState(0);
@@ -33,8 +43,14 @@ function StepReader({ story, step, focusOnEntry }: { story: Walkthrough; step: S
     <div className="walkthrough-workspace">
       <section className="walkthrough-rail" aria-label="Walkthrough step and details">
         <div className="walkthrough-section">
-          <h2 ref={heading} tabIndex={-1}>{step.title}</h2>
+          <h2 id={stepHeadingId} ref={heading} tabIndex={-1} aria-describedby={stepProgressId}>{step.title}</h2>
           <p className="walkthrough-prose" data-testid="step-body">{step.body}</p>
+          {(previous || next) && (
+            <nav className="walkthrough-adjacent" aria-label="Adjacent steps">
+              {previous && <a className="link" rel="prev" href={stepUrl(path, previous.id)} onClick={(event) => go(event, previous.id)}>Previous step</a>}
+              {next && <a className="link" rel="next" href={stepUrl(path, next.id)} onClick={(event) => go(event, next.id)}>Next step</a>}
+            </nav>
+          )}
           {exploring && (
             <button type="button" className="btn" data-testid="return-to-step" onClick={() => {
               setViewId(step.view);
@@ -109,18 +125,7 @@ export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
     return () => window.removeEventListener('popstate', restore);
   }, []);
 
-  if (failed || !story) return (
-    <div className="empty" role="status">
-      <Mark size={32} />
-      <h1>{failed ? 'Walkthrough not available' : 'Loading walkthrough…'}</h1>
-    </div>
-  );
-
-  const requested = story.steps.find((candidate) => candidate.id === wanted);
-  const step = requested ?? story.steps[0];
-  const go = (event: MouseEvent<HTMLAnchorElement>, to: string) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    event.preventDefault();
+  const navigate = useCallback((to: string) => {
     const href = stepUrl(path, to);
     if (href !== window.location.pathname + window.location.search) {
       // An iframe shares the containing tab's history. Do not put steps in the article's Back stack.
@@ -128,10 +133,42 @@ export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
       else window.history.pushState(null, '', href);
     }
     setNavigation({ wanted: to, focusOnEntry: true });
+  }, [embed, path]);
+
+  const requestedIndex = story?.steps.findIndex((candidate) => candidate.id === wanted) ?? -1;
+  const stepIndex = Math.max(0, requestedIndex);
+  const step = story?.steps[stepIndex];
+  const stepId = step?.id ?? '';
+  const currentStep = useRef(stepId);
+  useLayoutEffect(() => {
+    currentStep.current = stepId;
+  }, [stepId]);
+
+  useEffect(() => {
+    if (!story) return;
+    return registerWalkthroughTools({ story, currentStepId: () => currentStep.current, goToStep: navigate });
+  }, [story, navigate]);
+
+  if (failed || !story || !step) return (
+    <div className="empty" role="status">
+      <Mark size={32} />
+      <h1>{failed ? 'Walkthrough not available' : 'Loading walkthrough…'}</h1>
+    </div>
+  );
+
+  const go = (event: MouseEvent<HTMLAnchorElement>, to: string) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigate(to);
   };
 
   return (
     <main className="walkthrough" data-testid="walkthrough" data-embed={embed}>
+      <a className="link walkthrough-skip" href={`#${stepHeadingId}`} onClick={(event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        document.getElementById(stepHeadingId)?.focus();
+      }}>Skip to step</a>
       <header className="walkthrough-header">
         <Brand compact={embed} />
         <h1>{story.title}</h1>
@@ -141,6 +178,7 @@ export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
         </div>
       </header>
       <nav className="walkthrough-steps" aria-label="Walkthrough steps">
+        <p className="walkthrough-progress" id={stepProgressId}>Step {stepIndex + 1} of {story.steps.length}</p>
         <ol>{story.steps.map((entry, index) => (
           <li key={entry.id}>
             <a className="link" data-step={entry.id} href={stepUrl(path, entry.id)} aria-current={entry.id === step.id ? 'step' : undefined} onClick={(event) => go(event, entry.id)}>
@@ -149,8 +187,8 @@ export function WalkthroughPage({ id, embed }: { id: string; embed: boolean }) {
           </li>
         ))}</ol>
       </nav>
-      {wanted !== null && !requested && <p className="walkthrough-fallback" role="status">That step is not available. Showing the first step.</p>}
-      <StepReader key={step.id} story={story} step={step} focusOnEntry={focusOnEntry} />
+      {wanted !== null && requestedIndex === -1 && <p className="walkthrough-fallback" role="status">That step is not available. Showing the first step.</p>}
+      <StepReader key={step.id} story={story} stepIndex={stepIndex} path={path} go={go} focusOnEntry={focusOnEntry} />
     </main>
   );
 }

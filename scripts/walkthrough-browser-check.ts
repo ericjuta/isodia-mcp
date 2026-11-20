@@ -1,8 +1,9 @@
 /** CI builds dist first. Run with CHROME_PATH set to a Chromium or Chrome executable. */
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type axeCore from 'axe-core';
 import puppeteer from 'puppeteer-core';
 import { svgToPng } from '../src/core/png';
 import { prepareWalkthrough } from '../src/core/walkthrough';
@@ -39,6 +40,9 @@ const focus = (id: string) => `[data-focus="${id}"]`;
 const stage = '[data-testid="stage"]';
 const notes = '[data-testid="component-notes"]';
 const picker = 'select[aria-label="Component"]';
+const skip = 'a.walkthrough-skip';
+const previous = '.walkthrough-adjacent a[rel="prev"]';
+const next = '.walkthrough-adjacent a[rel="next"]';
 
 try {
   await writeFile(join(root, 'checkout-architecture-v1.json'), JSON.stringify(prepareWalkthrough(model, { ...manifest, articleUrl })));
@@ -51,6 +55,33 @@ try {
     await page.setViewport({ width: 1040, height: 760 });
     assert.equal((await page.goto(`${readerOrigin}${step}`))?.status(), 200);
     await page.waitForSelector(focus('payments'));
+    await page.keyboard.press('Tab');
+    assert.ok(await page.$eval(skip, (link) => document.activeElement === link && link.textContent === 'Skip to step'),
+      'Skip to step is the first Tab stop');
+    assert.ok(await page.$eval(skip, (link) => {
+      const style = getComputedStyle(link);
+      return style.clipPath === 'none' && style.outlineStyle !== 'none';
+    }), 'the focused skip link is visible and outlined');
+    const heading = await page.$eval(skip, (link) => link.getAttribute('href'));
+    assert.ok(heading?.startsWith('#'));
+    await page.keyboard.press('Enter');
+    assert.ok(await page.$eval(`h2${heading}`, (element) => document.activeElement === element), 'Skip to step focuses the step heading');
+    assert.equal(page.url(), `${readerOrigin}${step}`, 'the skip link preserves the step URL');
+    assert.equal(await page.$eval(`h2${heading}`, (element) =>
+      document.getElementById(element.getAttribute('aria-describedby') ?? '')?.textContent), 'Step 2 of 3');
+
+    await page.evaluate(await readFile(require.resolve('axe-core/axe.min.js'), 'utf8'));
+    const violations = await page.evaluate(async () => {
+      const { axe } = window as Window & { axe?: typeof axeCore };
+      if (!axe) throw new Error('axe-core did not load in the reader.');
+      const results = await axe.run({ runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] } });
+      return results.violations.map(({ id, nodes }) => ({ id, targets: nodes.map(({ target }) => target) }));
+    });
+    assert.equal(violations.length, 0, `Walkthrough axe violations:\n${JSON.stringify(violations, null, 2)}`);
+    console.log('PASS: full-page reader skip link, step progress, and axe WCAG A/AA checks');
+
+    assert.equal(await page.$eval(previous, (link) => (link as HTMLAnchorElement).href), `${readerOrigin}${path}?step=request-path`);
+    assert.equal(await page.$eval(next, (link) => (link as HTMLAnchorElement).href), `${readerOrigin}${path}?step=after-the-order`);
     assert.match(await page.$eval('[data-testid="step-body"]', (element) => element.textContent ?? ''), /Checkout/);
     assert.match(await page.$eval(notes, (element) => element.textContent ?? ''), /idempotency key/);
     assert.equal(await page.$('.toolbar, .inspector, .picker'), null, 'no editor controls in the reader');
@@ -77,12 +108,20 @@ try {
     await page.waitForSelector(focus('payments'));
     await page.goForward();
     await page.waitForSelector(focus('outbox'));
+    assert.equal(await page.$(next), null, 'no Next step link on the last step');
+    await page.click(previous);
+    await page.waitForSelector(focus('payments'));
+    assert.equal(page.url(), `${readerOrigin}${step}`);
+    await page.click(next);
+    await page.waitForSelector(focus('outbox'));
+    assert.equal(page.url(), `${readerOrigin}${path}?step=after-the-order`);
     await page.goto(`${readerOrigin}${path}?step=unknown`);
     await page.waitForSelector(focus('gateway'));
+    assert.equal(await page.$(previous), null, 'no Previous step link on the first step');
     assert.match(await page.$eval('.walkthrough-fallback', (element) => element.textContent ?? ''), /Showing the first step/);
-    console.log('PASS: deep links, canvas and keyboard selection, independent exploration, and step history');
+    console.log('PASS: deep links, adjacent steps, canvas and keyboard selection, independent exploration, and step history');
 
-    await page.setViewport({ width: 375, height: 720 });
+    await page.setViewport({ width: 345, height: 720 });
     await page.goto(articleUrl);
     const approvedFrame = await (await page.waitForSelector('iframe'))?.contentFrame();
     assert.ok(approvedFrame, 'article iframe attached');

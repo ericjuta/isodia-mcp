@@ -7,6 +7,9 @@ export interface WalkthroughSeoOptions {
   id: string;
   /** Optional relative path to OG image (e.g. /og-askgina-os-v1.png) */
   ogImagePath?: string;
+  /** Selected step and its card, if available. */
+  stepId?: string;
+  stepOgImagePath?: string;
 }
 
 function escapeHtml(value: string): string {
@@ -18,10 +21,14 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
+function shortDescription(body: string): string {
+  const trimmed = body.trim();
+  if (trimmed.length <= 200) return trimmed;
+  return `${trimmed.slice(0, 197).trimEnd()}...`;
+}
+
 export function walkthroughDescription(story: Walkthrough): string {
-  const first = story.steps[0]?.body.trim() ?? '';
-  if (first.length <= 200) return first;
-  return `${first.slice(0, 197).trimEnd()}...`;
+  return shortDescription(story.steps[0]?.body ?? '');
 }
 
 export function walkthroughMarkdown(story: Walkthrough, options: WalkthroughSeoOptions): string {
@@ -123,7 +130,7 @@ export function renderWalkthroughFallbackHtml(story: Walkthrough, options: Walkt
 }
 
 /**
- * Enrich the SPA HTML shell with per-walkthrough social metadata (Open Graph + Twitter Card),
+  * Enrich the SPA HTML shell with story or step social metadata (Open Graph + Twitter Card),
  * canonical/markdown alternate links, JSON-LD structured data, and semantic no-JS fallback content
  * inside `<div id="root">` (which React replaces on mount).
  */
@@ -134,12 +141,16 @@ export function enhanceWalkthroughHtml(
 ): string {
   const canonicalUrl = `${options.origin}/w/${options.id}`;
   const markdownUrl = `${options.origin}/w/${options.id}.md`;
-  const description = walkthroughDescription(story);
-  const imageUrl = options.ogImagePath ? `${options.origin}${options.ogImagePath}` : undefined;
+  const step = options.stepOgImagePath ? story.steps.find(({ id }) => id === options.stepId) : undefined;
+  const description = step ? shortDescription(step.body) : walkthroughDescription(story);
+  const imagePath = step ? options.stepOgImagePath : options.ogImagePath;
+  const imageUrl = imagePath ? `${options.origin}${imagePath}` : undefined;
   const escapedTitle = escapeHtml(story.title);
+  const escapedSocialTitle = step ? escapeHtml(`${step.title} · ${story.title}`) : escapedTitle;
   const escapedDesc = escapeHtml(description);
   const escapedCanonical = escapeHtml(canonicalUrl);
   const escapedMarkdown = escapeHtml(markdownUrl);
+  const escapedSocialUrl = step ? escapeHtml(`${canonicalUrl}?step=${encodeURIComponent(step.id)}`) : escapedCanonical;
 
   const headTags = [
     `<meta name="description" content="${escapedDesc}" />`,
@@ -147,26 +158,29 @@ export function enhanceWalkthroughHtml(
     `<link rel="alternate" type="text/markdown" href="${escapedMarkdown}" title="${escapedTitle} (Markdown)" />`,
     `<meta property="og:type" content="article" />`,
     `<meta property="og:site_name" content="Isodia" />`,
-    `<meta property="og:title" content="${escapedTitle}" />`,
+    `<meta property="og:title" content="${escapedSocialTitle}" />`,
     `<meta property="og:description" content="${escapedDesc}" />`,
-    `<meta property="og:url" content="${escapedCanonical}" />`,
+    `<meta property="og:url" content="${escapedSocialUrl}" />`,
     ...(imageUrl
       ? [
           `<meta property="og:image" content="${escapeHtml(imageUrl)}" />`,
-          `<meta property="og:image:alt" content="${escapedTitle} architecture overview diagram" />`,
+          ...(step ? [
+            `<meta property="og:image:width" content="1200" />`,
+            `<meta property="og:image:height" content="630" />`
+          ] : []),
+          `<meta property="og:image:alt" content="${escapedSocialTitle} architecture ${step ? '' : 'overview '}diagram" />`,
           `<meta name="twitter:card" content="summary_large_image" />`,
           `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />`
         ]
       : [`<meta name="twitter:card" content="summary" />`]),
-    `<meta name="twitter:title" content="${escapedTitle}" />`,
+    `<meta name="twitter:title" content="${escapedSocialTitle}" />`,
     `<meta name="twitter:description" content="${escapedDesc}" />`,
     `<script type="application/ld+json">${walkthroughJsonLd(story, options)}</script>`
   ].join('\n    ');
 
-  let out = html.replace(/<title>[^<]*<\/title>/i, `<title>${escapedTitle} — Isodia</title>\n    ${headTags}`);
+  const out = html.replace(/<title>[^<]*<\/title>/i, () => `<title>${escapedTitle} — Isodia</title>\n    ${headTags}`);
   const fallback = renderWalkthroughFallbackHtml(story, options);
-  out = out.replace('<div id="root"></div>', `<div id="root">${fallback}</div>`);
-  return out;
+  return out.replace('<div id="root"></div>', () => `<div id="root">${fallback}</div>`);
 }
 
 export function prefersMarkdown(request: Request): boolean {

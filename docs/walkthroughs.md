@@ -20,6 +20,19 @@ does not grant access to the project.
 | step | One stop in the walkthrough: title, prose, a view and an optional focused component |
 | publication | A prepared, versioned snapshot file, named in every link to it |
 
+## WebMCP tools for agents
+
+When the browser supports WebMCP, the reader page exposes three tools:
+
+- `list_steps` takes no input. It returns the walkthrough title, article URL, and current step ID.
+  Each step entry includes its ID, position (starting at 1), title, view ID, and absolute link.
+- `read_step` returns a step's text, view, component names, and any focused component notes.
+  Pass `stepId` to read a specific step, or omit it to read the current step.
+- `go_to_step` requires `stepId`. It shows that step and returns the same details as `read_step`.
+
+An error for an unknown step ID lists the valid IDs. All three tools are read-only:
+`go_to_step` changes which step the reader shows, but no tool edits the publication or its model.
+
 ## Publication checklist
 
 New to Isodia? Run the [local sample](getting-started.md#3-preview-the-checkout-walkthrough) before preparing your own. Use the checklist below for each version you publish.
