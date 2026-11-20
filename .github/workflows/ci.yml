@@ -50,3 +50,40 @@ jobs:
         run: |
           ./node_modules/.bin/cf deploy --dry-run --prebuilt --mode production
           ./node_modules/.bin/cf workers check --prebuilt --mode production --outfile "$RUNNER_TEMP/worker-startup.cpuprofile"
+
+  # Builds the reader-only askgina-os-walkthrough Worker with the reviewed publication in
+  # deploy/askgina-os-walkthrough and uploads its Build Output. Nothing is deployed.
+  askgina-os-walkthrough:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_SEND_TELEMETRY: "false"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - name: Pin the reviewed publication
+        run: sha256sum -c SHA256SUMS
+        working-directory: deploy/askgina-os-walkthrough/publications
+      - run: bun run build
+      - name: Build and validate the reader Worker for deployment
+        working-directory: deploy/askgina-os-walkthrough
+        run: |
+          # The reader project shares the repository's dependencies; cf looks for them here.
+          ln -s ../../node_modules node_modules
+          ../../node_modules/.bin/cf build
+          ../../node_modules/.bin/cf deploy --dry-run --prebuilt
+          ../../node_modules/.bin/cf workers check --prebuilt
+          find .cloudflare/output -type f | sort | xargs sha256sum
+      - uses: actions/upload-artifact@v4
+        with:
+          name: askgina-os-walkthrough-build-output
+          path: deploy/askgina-os-walkthrough/.cloudflare/output
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

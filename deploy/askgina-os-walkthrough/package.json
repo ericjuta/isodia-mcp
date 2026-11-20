@@ -1,0 +1,11 @@
+{
+  "name": "askgina-os-walkthrough",
+  "private": true,
+  "type": "module",
+  "description": "Reader-only Worker project. Dependencies resolve from the repository root node_modules; do not install here.",
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-rc.2",
+    "cf": "1.0.0-rc.1",
+    "vite": "^8.3.8"
+  }
+}
