@@ -1,7 +1,22 @@
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { cloudflare } from '@cloudflare/vite-plugin';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { publications } from '../../vite.config';
+
+function copyReaderPublicAssets(): Plugin {
+  const srcDir = resolve(import.meta.dirname, 'public');
+  return {
+    name: 'isodia:reader-public-assets',
+    closeBundle() {
+      if (!existsSync(srcDir)) return;
+      const outDir = resolve(import.meta.dirname, '.cloudflare/output/v1/workers/default/assets');
+      if (!existsSync(outDir)) return;
+      mkdirSync(outDir, { recursive: true });
+      cpSync(srcDir, outDir, { recursive: true });
+    }
+  };
+}
 
 /** Bundles ./publications into the reader Worker and ships the root dist/ as its assets. */
 export default defineConfig(({ isPreview }) => {
@@ -11,6 +26,6 @@ export default defineConfig(({ isPreview }) => {
   process.env.ISODIA_WALKTHROUGHS_DIR ??= new URL('./publications', import.meta.url).pathname;
   return {
     publicDir: '../../dist',
-    plugins: [publications(), cloudflare()]
+    plugins: [publications(), cloudflare(), copyReaderPublicAssets()]
   };
 });
