@@ -119,7 +119,7 @@ export function renderWalkthroughFallbackHtml(story: Walkthrough, options: Walkt
         `<li><h3><a href="${escapeHtml(`${canonicalUrl}?step=${step.id}`)}">${index + 1}. ${escapeHtml(step.title)}</a></h3><p>${escapeHtml(step.body)}</p></li>`,
     )
     .join('');
-  return `<main id="walkthrough-static" style="max-width:48rem;margin:2rem auto;padding:0 1.25rem;font-family:system-ui,sans-serif;line-height:1.6"><h1>${escapeHtml(story.title)}</h1><p>${escapeHtml(walkthroughDescription(story))}</p><p><a href="${escapeHtml(story.articleUrl)}">Source repository</a> · <a href="${escapeHtml(`${options.origin}/w/${options.id}.md`)}">Markdown version</a></p><ol>${stepsHtml}</ol></main>`;
+  return `<main id="walkthrough-static" style="max-width:48rem;margin:2rem auto;padding:0 1.25rem;font-family:system-ui,sans-serif;line-height:1.6"><h1>${escapeHtml(story.title)}</h1><p>${escapeHtml(walkthroughDescription(story))}</p><nav><a href="${escapeHtml(story.articleUrl)}">Source repository</a> · <a href="${escapeHtml(`${options.origin}/w/${options.id}.md`)}">Markdown</a> · <a href="${escapeHtml(`${options.origin}/docs`)}">API Docs</a> · <a href="${escapeHtml(`${options.origin}/openapi.json`)}">OpenAPI</a> · <a href="${escapeHtml(`${options.origin}/about`)}">About</a> · <a href="${escapeHtml(`${options.origin}/privacy`)}">Privacy</a></nav><ol>${stepsHtml}</ol></main>`;
 }
 
 /**

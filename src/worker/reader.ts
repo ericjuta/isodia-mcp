@@ -79,16 +79,110 @@ export default {
       });
     }
 
-    if (pathname === '/llms.txt' || pathname === '/llms-full.txt') {
+    if (pathname === '/llms.txt' || pathname === '/llms-full.txt' || pathname === '/docs/llms.txt' || pathname === '/api/llms.txt') {
       const body = pathname === '/llms-full.txt' && primarySlug
         ? (() => {
             const story = loadBundled(primarySlug);
             return story ? walkthroughMarkdown(story, { origin, id: primarySlug, ogImagePath: OG_IMAGES[primarySlug] }) : buildLlmsTxt(origin, slugs);
           })()
-        : buildLlmsTxt(origin, slugs);
+        : pathname === '/api/llms.txt'
+          ? [
+              '# Isodia Walkthrough Reader API',
+              '',
+              '> Public, read-only JSON and Markdown endpoints for published architecture walkthroughs.',
+              '',
+              `- [OpenAPI 3.1 Specification](${origin}/openapi.json)`,
+              `- [API Documentation](${origin}/docs)`,
+              ...slugs.map((slug) => `- [GET /api/walkthroughs/${slug}](${origin}/api/walkthroughs/${slug})`)
+            ].join('\n') + '\n'
+          : buildLlmsTxt(origin, slugs);
       return new Response(body, {
         status: 200,
         headers: { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'public, max-age=3600' }
+      });
+    }
+
+    if (pathname === '/openapi.json') {
+      const spec = {
+        openapi: '3.1.0',
+        info: {
+          title: 'Isodia Walkthrough Reader API',
+          version: '1.0.0',
+          description: 'Public, read-only API for fetching published Isodia architecture walkthrough snapshots.'
+        },
+        servers: [{ url: origin }],
+        paths: {
+          '/api/walkthroughs/{id}': {
+            get: {
+              operationId: 'getWalkthrough',
+              summary: 'Fetch a published walkthrough snapshot by slug',
+              parameters: [
+                {
+                  name: 'id',
+                  in: 'path',
+                  required: true,
+                  schema: { type: 'string', enum: slugs }
+                }
+              ],
+              responses: {
+                '200': {
+                  description: 'Validated walkthrough JSON snapshot',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        type: 'object',
+                        required: ['schemaVersion', 'title', 'articleUrl', 'steps', 'model'],
+                        properties: {
+                          schemaVersion: { type: 'integer', const: 1 },
+                          title: { type: 'string' },
+                          articleUrl: { type: 'string', format: 'uri' },
+                          steps: { type: 'array', items: { type: 'object' } },
+                          model: { type: 'object' }
+                        }
+                      }
+                    }
+                  }
+                },
+                '404': {
+                  description: 'Walkthrough not available',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        type: 'object',
+                        required: ['error'],
+                        properties: { error: { type: 'string' } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      };
+      return new Response(JSON.stringify(spec, null, 2), {
+        status: 200,
+        headers: { 'content-type': 'application/openapi+json; charset=utf-8', 'cache-control': 'public, max-age=3600' }
+      });
+    }
+
+    if (pathname === '/docs' || pathname === '/about' || pathname === '/privacy') {
+      const title = pathname === '/docs' ? 'API & Walkthrough Documentation' : pathname === '/about' ? 'About Isodia Walkthroughs' : 'Privacy';
+      const md = pathname === '/docs'
+        ? `# ${title}\n\nThis host serves public, read-only architecture walkthrough snapshots published with [Isodia](https://github.com/ericjuta/isodia-mcp).\n\n## Endpoints\n\n- \`GET /api/walkthroughs/{id}\` — JSON snapshot\n- \`GET /w/{id}\` — Interactive walkthrough (HTML, or Markdown with \`Accept: text/markdown\`)\n- \`GET /w/{id}.md\` — Markdown walkthrough\n- \`GET /openapi.json\` — OpenAPI 3.1 specification\n- \`GET /llms.txt\` — Agent index\n`
+        : pathname === '/about'
+          ? `# ${title}\n\nIsodia publishes interactive, read-only isometric architecture walkthroughs from reviewed snapshots. Source code: https://github.com/ericjuta/isodia-mcp.\n`
+          : `# ${title}\n\nThis reader serves static, public, read-only walkthrough snapshots. It sets no cookies, requires no login, and collects no personal data.\n`;
+      if (prefersMarkdown(request)) {
+        return new Response(md, {
+          status: 200,
+          headers: { 'content-type': 'text/markdown; charset=utf-8', 'vary': 'Accept, User-Agent', 'cache-control': 'public, max-age=3600' }
+        });
+      }
+      const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} — Isodia</title><link rel="canonical" href="${origin}${pathname}"></head><body style="max-width:48rem;margin:2rem auto;padding:0 1.25rem;font-family:system-ui,sans-serif;line-height:1.6"><h1>${title}</h1><p>${pathname === '/docs' ? `Public, read-only walkthrough API and documentation. See the <a href="${origin}/openapi.json">OpenAPI 3.1 spec</a>, <a href="${origin}/llms.txt">llms.txt</a>, or <a href="${origin}/w/${primarySlug ?? ''}">interactive walkthrough</a>.` : pathname === '/about' ? 'Isodia publishes interactive, read-only isometric architecture walkthroughs from reviewed snapshots. Source code is at <a href="https://github.com/ericjuta/isodia-mcp">github.com/ericjuta/isodia-mcp</a>.' : 'This reader serves static, public, read-only walkthrough snapshots. It sets no cookies, requires no login, and collects no personal data.'}</p><nav><a href="${origin}/">Walkthrough</a> · <a href="${origin}/docs">Docs</a> · <a href="${origin}/about">About</a> · <a href="${origin}/privacy">Privacy</a></nav></body></html>`;
+      return new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8', 'vary': 'Accept, User-Agent', 'cache-control': 'public, max-age=3600' }
       });
     }
 
@@ -106,8 +200,8 @@ export default {
       const linkset = {
         linkset: slugs.map((slug) => ({
           anchor: `${origin}/api/walkthroughs/${slug}`,
-          'service-desc': [{ href: `${origin}/w/${slug}.md`, type: 'text/markdown' }],
-          'service-doc': [{ href: `${origin}/w/${slug}`, type: 'text/html' }]
+          'service-desc': [{ href: `${origin}/openapi.json`, type: 'application/openapi+json' }],
+          'service-doc': [{ href: `${origin}/docs`, type: 'text/html' }]
         }))
       };
       return new Response(JSON.stringify(linkset, null, 2), {
