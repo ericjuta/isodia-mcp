@@ -92,8 +92,10 @@ export function registerWalkthroughTools(options: {
     const context = typeof navigatorContext?.registerTool === 'function'
       ? navigatorContext
       : typeof document === 'undefined' ? undefined : (document as Document & ModelContextHost).modelContext;
-    const registerTool = context?.registerTool;
-    if (typeof registerTool !== 'function') return noop;
+    if (typeof context?.registerTool !== 'function') return noop;
+    // Call the method on its host object: WebMCP methods need their receiver, and static
+    // scanners look for this exact form.
+    const fromNavigator = context === navigatorContext;
 
     const { story, currentStepId, goToStep } = options;
     const tools: Tool[] = [
@@ -149,7 +151,9 @@ export function registerWalkthroughTools(options: {
         if (signal.aborted) remove(tool.name);
         else registered.add(tool.name);
       };
-      const pending = registerTool.call(context, tool, { signal });
+      const pending = fromNavigator
+        ? (navigator as Navigator & ModelContextHost).modelContext!.registerTool!(tool, { signal })
+        : (document as Document & ModelContextHost).modelContext!.registerTool!(tool, { signal });
       if (pending === undefined) onRegistered();
       else void Promise.resolve(pending).then(onRegistered, cleanup);
     }
