@@ -19,7 +19,7 @@ export function addWalkthroughRoutes(
   reader: WalkthroughReader | undefined,
   // Deployment-controlled exact HTTPS origins, never derived from the request.
   extraFrameOrigins: (id: string) => readonly string[] = () => [],
-  ogImageForId: (id: string) => string | undefined = () => undefined,
+  ogImageForId: (id: string, stepId?: string) => string | undefined = () => undefined,
 ): void {
   app.get('/api/walkthroughs/:id', async (c) => {
     c.header('cache-control', 'no-store');
@@ -40,7 +40,8 @@ export function addWalkthroughRoutes(
         : "'none'";
       c.header('content-security-policy', `frame-ancestors ${ancestors}`);
       if (!story || !reader) return c.text('Walkthrough not available.', 404);
-      const origin = new URL(c.req.url).origin;
+      const url = new URL(c.req.url);
+      const { origin } = url;
       const seo = { origin, id, ogImagePath: ogImageForId(id) };
       if (isMd) {
         const md = walkthroughMarkdown(story, seo);
@@ -68,7 +69,11 @@ export function addWalkthroughRoutes(
         return c.body(shell, 200, { 'content-type': 'text/html; charset=utf-8' });
       }
       const rawHtml = await new Response(shell).text();
-      const html = enhanceWalkthroughHtml(rawHtml, story, seo);
+      const requestedStep = url.searchParams.get('step');
+      const stepId = story.steps.find(({ id }) => id === requestedStep)?.id;
+      const html = enhanceWalkthroughHtml(rawHtml, story, {
+        ...seo, stepId, stepOgImagePath: stepId ? ogImageForId(id, stepId) : undefined
+      });
       return c.body(html, 200, { 'content-type': 'text/html; charset=utf-8' });
     });
   }

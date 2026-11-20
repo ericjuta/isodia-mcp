@@ -273,6 +273,13 @@ drawing of the view, placed in the page, with editing on top.
   component’s artwork or label selects it, and a drag only pans. An unmodified
   wheel scrolls the reader instead of trapping the article in the canvas. The active step
   updates the iframe link without adding entries to the article’s Back history.
+- **The walkthrough reads like a page.** The first Tab stop is `Skip to step`. It appears
+  on focus and takes you to the step heading. The step list says `Step N of M` in words, and
+  the heading carries that progress for screen readers. Previous and Next below the prose
+  are the same deep links as the step list, with no dead links at the ends. Step prose and
+  component notes stop at `64ch` with a line height of `1.6`. With reduced motion, the reader
+  does not ease, animate or scroll smoothly. Pan and Fit set the camera directly. Reader text
+  meets WCAG AA contrast. CI checks the full-page reader with axe.
 
 ## The picture
 
@@ -398,3 +405,4 @@ serves. If the answer is "it looks nicer", it does not go in.
 | 2026-11-18 | Record actual icon width and title-routing behavior | The icon rendering scale and route avoidance already changed; the documented dimensions and debt now match |
 | 2026-11-18 | Select and Connect recognize icons and labels as well as base tiles | The editor, live share and walkthrough agree on what a visible component click means |
 | 2026-11-19 | Worker PNGs use resvg WebAssembly with the same bundled Plex TTFs | Same picture on Cloudflare as on Bun for Latin text; a Worker has no system fonts to fall back on |
+| 2026-11-20 | Walkthroughs offer a skip link, step progress in text and adjacent step links | A reader can get to the prose, know where they are and continue without returning to the list |

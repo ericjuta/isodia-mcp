@@ -9,13 +9,29 @@ interface ReaderEnv {
   ASSETS: Fetcher;
 }
 
+const ASKGINA_OS_ID = 'askgina-os-v1';
 const OG_IMAGES: Record<string, string> = {
-  'askgina-os-v1': '/og-askgina-os-v1.png'
+  [ASKGINA_OS_ID]: '/og-askgina-os-v1.png'
 };
 
 function loadBundled(id: string): Walkthrough | null {
   if (!Object.hasOwn(publications, id)) return null;
   return JSON.parse(publications[id]) as Walkthrough;
+}
+
+function stepCardPath(id: string, stepId: string): string {
+  return `/og/${id}/${stepId}.png`;
+}
+
+// The walkthrough test suite ensures that every bundled Ask Gina step has a card on disk.
+const STEP_CARD_PATHS = new Set(
+  loadBundled(ASKGINA_OS_ID)?.steps.map(({ id }) => stepCardPath(ASKGINA_OS_ID, id))
+);
+
+function ogImageForId(id: string, stepId?: string): string | undefined {
+  if (stepId === undefined) return Object.hasOwn(OG_IMAGES, id) ? OG_IMAGES[id] : undefined;
+  const path = stepCardPath(id, stepId);
+  return STEP_CARD_PATHS.has(path) ? path : undefined;
 }
 
 function buildLlmsTxt(origin: string, slugs: string[]): string {
@@ -54,7 +70,7 @@ export default {
   fetch(request, env) {
     const url = new URL(request.url);
     const { pathname, origin } = url;
-    if (pathname.startsWith('/assets/') || pathname === '/og-askgina-os-v1.png') {
+    if (pathname.startsWith('/assets/') || pathname === OG_IMAGES[ASKGINA_OS_ID] || STEP_CARD_PATHS.has(pathname)) {
       return env.ASSETS.fetch(request);
     }
     const slugs = Object.keys(publications);
@@ -261,8 +277,8 @@ export default {
       addWalkthroughRoutes(
         reader,
         bundledWalkthroughs(env.ASSETS),
-        (id) => (id === 'askgina-os-v1' ? ['https://app.notion.com', 'https://www.notion.so'] : []),
-        (id) => OG_IMAGES[id],
+        (id) => (id === ASKGINA_OS_ID ? ['https://app.notion.com', 'https://www.notion.so'] : []),
+        ogImageForId,
       );
       return reader.fetch(request);
     }
